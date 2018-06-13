@@ -1,5 +1,5 @@
-import matplotlib
-matplotlib.use('Agg')
+# import matplotlib
+# matplotlib.use('Agg')
 import numpy as np
 from scipy.misc import imread
 import torch
@@ -101,4 +101,5 @@ if __name__ == '__main__':
 
 	# Visualization
 	plt.imshow(flow_im)
-	plt.savefig(os.path.join(args.save, 'flow.png'), bbox_inches='tight')
+    # plt.savefig(os.path.join(args.save, 'flow.png'), bbox_inches='tight')
+	plt.savefig(os.path.join(args.save, 'flow.png'))
