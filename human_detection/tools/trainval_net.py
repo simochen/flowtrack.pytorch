@@ -32,12 +32,15 @@ def parse_args():
   parser.add_argument('--weight', dest='weight',
                       help='initialize with pretrained model weights',
                       type=str)
-  parser.add_argument('--imdb', dest='imdb_name',
-                      help='dataset to train on',
-                      default='voc_2007_trainval', type=str)
-  parser.add_argument('--imdbval', dest='imdbval_name',
-                      help='dataset to validate on',
-                      default='voc_2007_test', type=str)
+  parser.add_argument('--dataset', dest='dataset',
+                      help='training dataset',
+                      default='coco_2017', type=str)
+  # parser.add_argument('--imdb', dest='imdb_name',
+  #                     help='dataset to train on',
+  #                     default='voc_2007_trainval', type=str)
+  # parser.add_argument('--imdbval', dest='imdbval_name',
+  #                     help='dataset to validate on',
+  #                     default='voc_2007_test', type=str)
   parser.add_argument('--iters', dest='max_iters',
                       help='number of iterations to train',
                       default=70000, type=int)
@@ -89,6 +92,23 @@ if __name__ == '__main__':
 
   print('Called with args:')
   print(args)
+
+  if args.dataset == "pascal_voc":
+      args.imdb_name = "voc_2007_trainval"
+      args.imdbval_name = "voc_2007_test"
+      args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+  elif args.dataset == "pascal_voc_0712":
+      args.imdb_name = "voc_2007_trainval+voc_2012_trainval"
+      args.imdbval_name = "voc_2007_test"
+      args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+  elif args.dataset == "coco_2014":
+      args.imdb_name = "coco_2014_train+coco_2014_valminusminival"
+      args.imdbval_name = "coco_2014_minival"
+      args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '50']
+  elif args.dataset == "coco_2017":
+      args.imdb_name = "coco_2017_train"
+      args.imdbval_name = "coco_2017_val"
+      args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '50']
 
   if args.cfg_file is not None:
     cfg_from_file(args.cfg_file)

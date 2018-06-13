@@ -38,8 +38,14 @@ CLASSES = ('__background__',
            'motorbike', 'person', 'pottedplant',
            'sheep', 'sofa', 'train', 'tvmonitor')
 
-NETS = {'vgg16': ('vgg16_faster_rcnn_iter_%d.pth',),'res101': ('res101_faster_rcnn_iter_%d.pth',)}
-DATASETS= {'pascal_voc': ('voc_2007_trainval',),'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',)}
+NETS = {'vgg16': ('vgg16_faster_rcnn_iter_%d.pth',),
+        'res50': ('res50_faster_rcnn_iter_%d.pth',),
+        'res101': ('res101_faster_rcnn_iter_%d.pth',),
+        'res152': ('res152_faster_rcnn_iter_%d.pth',)}
+DATASETS= {'pascal_voc': ('voc_2007_trainval',),
+           'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',),
+           'coco_2014': ('coco_2014_train+coco_2014_valminusminival',),
+           'coco_2017': ('coco_2017_train',)}
 
 def vis_detections(im, class_name, dets, thresh=0.5):
     """Draw detected bounding boxes."""
@@ -103,9 +109,9 @@ def demo(net, image_name):
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='Tensorflow Faster R-CNN demo')
-    parser.add_argument('--net', dest='demo_net', help='Network to use [vgg16 res101]',
+    parser.add_argument('--net', dest='demo_net', help='Network to use [vgg16 res50 res101 res152]',
                         choices=NETS.keys(), default='res101')
-    parser.add_argument('--dataset', dest='dataset', help='Trained dataset [pascal_voc pascal_voc_0712]',
+    parser.add_argument('--dataset', dest='dataset', help='Trained dataset [pascal_voc pascal_voc_0712 coco_2014 coco_2017]',
                         choices=DATASETS.keys(), default='pascal_voc_0712')
     args = parser.parse_args()
 
@@ -118,8 +124,14 @@ if __name__ == '__main__':
     # model path
     demonet = args.demo_net
     dataset = args.dataset
-    saved_model = os.path.join('output', demonet, DATASETS[dataset][0], 'default',
-                              NETS[demonet][0] %(70000 if dataset == 'pascal_voc' else 110000))
+    if dataset == 'pascal_voc':
+        iters = 70000
+    elif dataset == 'pascal_voc_0712':
+        iters = 110000
+    elif dataset == 'coco_2014':
+        iters = 1190000
+    saved_model = os.path.join('models', dataset,#DATASETS[dataset][0],
+                              NETS[demonet][0] % iters)
 
 
     if not os.path.isfile(saved_model):
@@ -129,8 +141,12 @@ if __name__ == '__main__':
     # load network
     if demonet == 'vgg16':
         net = vgg16()
+    elif demonet == 'res50':
+        net = resnetv1(num_layers=50)
     elif demonet == 'res101':
         net = resnetv1(num_layers=101)
+    elif demonet == 'res152':
+        net = resnetv1(num_layers=152)
     else:
         raise NotImplementedError
     net.create_architecture(21,
