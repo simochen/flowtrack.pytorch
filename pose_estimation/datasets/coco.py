@@ -36,8 +36,8 @@ class COCO(data.Dataset):
         #      L leg: 11(hip), 13(knee), 15(ankle)
         #       face: 0(nose), 1(l-eye), 2(r-eye), 3(l-ear), 4(r-ear)
 
-        # self.mean = [103.9438, 113.9438, 119.8627]    # COCO
-        self.mean = [103.939, 116.779, 123.68]      # pretrained
+        self.mean = [103.9438, 113.9438, 119.8627]    # COCO
+        # self.mean = [103.939, 116.779, 123.68]      # pretrained
 
         # self.mean, self.std = 0.5 * torch.ones(3), 0.5 * torch.ones(3)
         # self.mean, self.std = self._compute_mean()

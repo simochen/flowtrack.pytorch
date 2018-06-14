@@ -152,7 +152,7 @@ class deconv_resnet(nn.Module):
         self.heatmap = nn.Conv2d(num_feats, num_classes, kernel_size=1)
 
         for m in self.deconv:
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, nn.ConvTranspose2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
                 # bound = math.sqrt(6. / n)
