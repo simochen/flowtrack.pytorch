@@ -20,15 +20,16 @@ class COCO(data.Dataset):
         self.split = split
         if self.split == 'train':
             self.img_folder = os.path.join(opt.data_path,'images','train2017')
-            jsonfile = os.path.join(opt.data_path,'json','coco_train_single.json')
+            jsonfile = os.path.join(opt.data_path,'json','coco_train.json')
         elif self.split == 'valid':
             self.img_folder = os.path.join(opt.data_path,'images','val2017')
-            jsonfile = os.path.join(opt.data_path,'json','coco_val_single.json')
-        self.mask_folder = os.path.join(opt.data_path,'images','mask2017')
+            jsonfile = os.path.join(opt.data_path,'json','coco_val.json')
+        if self.opt.with_mask:
+            self.mask_folder = os.path.join(opt.data_path,'images','mask2017')
 
         # create train/val split
         with open(jsonfile) as anno_file:
-            self.anno = json.load(anno_file)['coco']
+            self.anno = json.load(anno_file)
 
         # COCO R arm: 6(shoulder), 8(elbow), 10(wrist)
         #      L arm: 5(shoulder), 7(elbow), 9(wrist)
@@ -79,10 +80,11 @@ class COCO(data.Dataset):
         img = mean_sub(img, np.array(self.mean)).astype(np.float32)
         # img = torch.from_numpy(img.transpose((2,0,1))).float().div(255) # CxHxW
 
-        # load mask
-        mask_path = os.path.join(self.mask_folder, 'mask_miss_{}.png'.format(anno['img_name']))
-        mask = cv2.imread(mask_path, 0)[:,:,np.newaxis]
-        img = np.concatenate((img, mask), axis=2)
+        if self.opt.with_mask:
+            # load mask
+            mask_path = os.path.join(self.mask_folder, 'mask_miss_{}.png'.format(anno['img_name']))
+            mask = cv2.imread(mask_path, 0)[:,:,np.newaxis]
+            img = np.concatenate((img, mask), axis=2)
 
 
         # preprocess
@@ -91,8 +93,8 @@ class COCO(data.Dataset):
         # bbox = torch.Tensor(anno['bbox']).view(1,4) # [x,y,w,h]
         ref_scale = torch.Tensor([anno['segment_area']])
 
-        h = int(anno['img_height'])
-        w = int(anno['img_width'])
+        h = img.shape[0]
+        w = img.shape[1]
 
         scale = anno['scale']
         center = anno['objpos']

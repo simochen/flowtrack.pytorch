@@ -23,7 +23,7 @@ class MPII(data.Dataset):
 
         # create train/val split
         with open(jsonfile) as anno_file:
-            annolist = json.load(anno_file)['MPII']
+            annolist = json.load(anno_file)
 
         self.anno = []
         # img_list = []
@@ -93,8 +93,8 @@ class MPII(data.Dataset):
 
         joints[:,:,0:2].sub_(1) # Convert pts to zero based
 
-        h = int(anno['img_height'])
-        w = int(anno['img_width'])
+        h = img.shape[0]
+        w = img.shape[1]
 
         scale = anno['scale'] * 200
         center = anno['objpos']

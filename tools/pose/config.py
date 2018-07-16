@@ -35,6 +35,7 @@ class DefaultConfig(object):
     stride = 4
     with_logits = False
     with_bg = False
+    with_mask = True
 
     # ====================== Training Options ======================
     batch_size = 128 # training batch size

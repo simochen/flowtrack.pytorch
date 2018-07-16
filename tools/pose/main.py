@@ -53,7 +53,7 @@ def main(**kwargs):
                                        pretrained = True)
     if opt.use_gpu:
         model = torch.nn.DataParallel(model).cuda()
-        model = model.cuda()
+        # model = model.cuda()
 
     # Step 2 : loss function and optimizermAP
     lr = opt.lr
@@ -164,7 +164,7 @@ def train(train_loader, model, criterion, optimizer, opt):
     pbar = tqdm(total=len(train_loader))
     nan_cnt = 0
     for i, (data, heatmaps) in enumerate(train_loader):
-        if opt.dataset == 'coco':
+        if opt.dataset == 'coco' and opt.with_mask:
             mask = data[:,-1].numpy().transpose((1,2,0))
             data = data[:,:-1]
             mask = cv2.resize(mask, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
@@ -203,7 +203,7 @@ def validate(valid_loader, model, criterion, opt):
     annos = []
     nan_cnt = 0
     for i, (data, heatmaps, meta) in enumerate(valid_loader):
-        if opt.dataset == 'coco':
+        if opt.dataset == 'coco' and opt.with_mask:
             mask = data[:,-1].numpy().transpose((1,2,0))
             data = data[:,:-1]
             mask = cv2.resize(mask, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
