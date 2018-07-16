@@ -120,15 +120,15 @@ class deconv_resnet(nn.Module):
         if num_layers == 50:
             self.resnet = resnet50()
             # self.resnet = resnet50(pretrained)
-            model_path = 'data/pretrained/resnet50-caffe.pth'
+            model_path = 'data/pretrained/resnet50_caffe.pth'
         elif num_layers == 101:
             self.resnet = resnet101()
             # self.resnet = resnet101(pretrained)
-            model_path = 'data/pretrained/resnet101-caffe.pth'
+            model_path = 'data/pretrained/resnet101_caffe.pth'
         elif num_layers == 152:
             self.resnet = resnet152()
             # self.resnet = resnet152(pretrained)
-            model_path = 'data/pretrained/resnet152-caffe.pth'
+            model_path = 'data/pretrained/resnet152_caffe.pth'
 
         if pretrained:
             print("Loading pretrained weights from %s" %(model_path))
