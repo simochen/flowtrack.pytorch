@@ -110,30 +110,23 @@ class MPII(data.Dataset):
                 rot = (random.random()*2-1)*self.opt.rotate_degree_max
             if random.random() < self.opt.scale_prob:
                 factor = random.random()*(self.opt.scale_max-self.opt.scale_min)+self.opt.scale_min
-            img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
-            # joints transform
-            jo = joints[:,0:2].numpy()
-            jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
-            joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
-
-            out_h = self.opt.input_res[0]/self.opt.stride
-            out_w = self.opt.input_res[1]/self.opt.stride
 
             # flip
             if random.random() < self.opt.flip_prob:
                 img = fliplr(img)
-                joints = swaplr_joint(joints, out_w, self.opt.dataset)
+                joints = swaplr_joint(joints, w, self.opt.dataset)
+                center[0] = w - 1 - center[0]
 
         else:
-            img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
-            # joints transform
-            jo = joints[:,0:2].numpy()
-            jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
-            joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
-
             sf = float(self.opt.input_res[0])/scale
             ref_scale.mul_(sf*sf/self.opt.stride/self.opt.stride)
             meta = {'joints':joints, 'ref_scale':ref_scale}
+
+        img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
+        # joints transform
+        jo = joints[:,0:2].numpy()
+        jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
+        joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
 
         # generate heatmaps
         sigma = self.opt.sigma

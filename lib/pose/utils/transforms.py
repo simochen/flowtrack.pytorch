@@ -111,10 +111,19 @@ def fliplr(img):
     """
     flip image
     """
-    if img.dim() == 3:      # C x H x W
-        img = torch.from_numpy(np.flip(img.numpy(), 2).copy())
-    elif img.dim() == 4:    # B x C x H x W
-        img = torch.from_numpy(np.flip(img.numpy(), 3).copy())
+    # input: Tensor, output: Tensor
+    if torch.is_tensor(img):
+        if img.dim() == 3:      # C x H x W
+            img = torch.from_numpy(np.flip(img.numpy(), 2).copy())
+        elif img.dim() == 4:    # B x C x H x W
+            img = torch.from_numpy(np.flip(img.numpy(), 3).copy())
+    # input: ndarray, output: ndarray
+    else:
+        if img.ndim == 3:       # H x W x C
+            img = np.flip(img, 1)
+        elif img.ndim == 4:     # B x H x W x C
+            img = np.flip(img, 2)
+
     return img
 
 def swap(img, pairs):
