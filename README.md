@@ -31,6 +31,8 @@ cd lib
 
 #### Pose Estimation
 
+Download [data folder](https://drive.google.com/drive/folders/1RqsY3ONtYlxQfLg2acJm36qTtqvHDCik?usp=sharing) as `$ROOT/data`.
+
 ```shell
 python ./tools/pose/main.py
 ```
