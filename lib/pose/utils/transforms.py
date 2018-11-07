@@ -27,6 +27,12 @@ def color_normalize(x, mean, std):
 def mean_sub(x, mean):
     return x - mean.reshape((1,1,-1))
 
+def normalize(x, mean, std):
+    return (x - mean.reshape((1,1,-1))) / std.reshape((1,1,-1))
+
+def get_img(img, mean, std):
+    return img.numpy().transpose((1,2,0)) * std.reshape((1,1,-1)) + mean.reshape((1,1,-1))
+
 
 def swaplr_joint(joints, width, dataset='coco'):
     """
@@ -108,22 +114,20 @@ def fliplr_(img, meta):
 
 
 def fliplr(img):
-    """
-    flip image
-    """
-    # input: Tensor, output: Tensor
-    if torch.is_tensor(img):
-        if img.dim() == 3:      # C x H x W
-            img = torch.from_numpy(np.flip(img.numpy(), 2).copy())
-        elif img.dim() == 4:    # B x C x H x W
-            img = torch.from_numpy(np.flip(img.numpy(), 3).copy())
-    # input: ndarray, output: ndarray
-    else:
-        if img.ndim == 3:       # H x W x C
-            img = np.flip(img, 1)
-        elif img.ndim == 4:     # B x H x W x C
-            img = np.flip(img, 2)
+    if img.ndim == 3:   # H x W x C
+        img = np.flip(img, 1).copy()
+    elif img.ndim == 4: # B x H x W x C
+        img = np.flip(img, 2).copy()
+    return img
 
+def fliplr_tensor(img):
+    """
+    flip image: Tensor
+    """
+    if img.dim() == 3:      # C x H x W
+        img = torch.from_numpy(np.flip(img.numpy(), 2).copy())
+    elif img.dim() == 4:    # B x C x H x W
+        img = torch.from_numpy(np.flip(img.numpy(), 3).copy())
     return img
 
 def swap(img, pairs):
@@ -230,11 +234,10 @@ def transform_point(pt, center, scale, res, invert=0, factor=1, rot=0, delta=(0,
 
 
 def transform_preds(coords, center, scale, res):
-    # size = coords.size()
-    # coords = coords.view(-1, coords.size(-1))
-    # print(coords.size())
-    for p in range(coords.size(0)):
-        coords[p, 0:2] = torch.from_numpy(transform(coords[p, 0:2], center, scale, res, 1))
+    # coords: [batch_size, num_joints, 2] (x, y)
+    # res: (h, w)
+    for i in range(coords.shape[0]):
+        coords[i] = transform_point(coords[i], center[i], scale[i], res, invert=1)
     return coords
 
 # img[INPUT] :    tensor [C x H x W]
@@ -250,4 +253,3 @@ def transform_image(img, center, scale, res, factor=1, rot=0, delta=(0,0)): # pa
     if img.ndim > 2:
         trans_img = trans_img.transpose((2,0,1))
     return torch.from_numpy(trans_img)
-

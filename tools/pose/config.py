@@ -21,40 +21,44 @@ class DefaultConfig(object):
     scale_min = 0.7
     scale_max = 1.3
     # Rotate
-    rotate_prob = 1.0
+    rotate_prob = 0.6
     rotate_degree_max = 40
 
     # Resolution
     input_res = (256, 192)
     # heatmap
-    sigma = 1
+    sigma = 2
 
     # ======================= Model Options =======================
     model = 'deconv_resnet'
-    backbone = 'resnet152'
+    backbone = 'resnet50'
     stride = 4
     with_logits = False
+    with_mask = False
     with_bg = False
-    with_mask = True
 
     # ====================== Training Options ======================
-    batch_size = 128 # training batch size
-    test_batch_size = 128
+    debug = False
+    batch_size = 32 # training batch size
+    test_batch_size = 32
     start_epoch = 0
     max_epoch = 140
     optim = 'adam'  # optimizer
-    lr = 2e-3 # initial learning rate
+    lr = 1e-3 # initial learning rate
     momentum = 0.9
-    weight_decay = 0 # loss function
+    weight_decay = 1e-4 # loss function
 
     # ====================== checkpoint Options ======================
     checkpoint_path = './checkpoints'
     exp_id = 'exp_01'
     resume = None   # resume from a checkpoint
-    save_every = 10  # save every N epoch
-    
+    save_every = 5  # save every N epoch
+
     # ====================== Evaluation Options ======================
+    adjust_coords = True
     nms_threshold = 0.0
+    oks_threshold = 0.0
+    kpt_threshold = 0.0
     nms_window_size = 3
 
 
@@ -62,13 +66,13 @@ def parse(self, kwargs):
     '''
     update config parameters according to kwargs
     '''
-    for k,v in kwargs.iteritems():
+    for k,v in kwargs.items():
         if not hasattr(self,k):
             warnings.warn("Warning: opt has not attribut %s" %k)
         setattr(self,k,v)
 
     print('user config:')
-    for k,v in self.__class__.__dict__.iteritems():
+    for k,v in self.__class__.__dict__.items():
         if not k.startswith('__'):
             print(k,getattr(self,k))
 

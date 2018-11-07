@@ -52,7 +52,7 @@ def draw_gaussian(img, pt, sigma):
     x = np.arange(img_x[0], img_x[1])
     y = np.arange(img_y[0], img_y[1])[:,np.newaxis]
     g = np.exp(- ((x - pt[0]) ** 2 + (y - pt[1]) ** 2) / (2.0 * sigma ** 2))
-    g = torch.from_numpy(g).float()
+    g = g.float()
 
     torch.max(img[img_y[0]:img_y[1], img_x[0]:img_x[1]], g,
            out = img[img_y[0]:img_y[1], img_x[0]:img_x[1]])

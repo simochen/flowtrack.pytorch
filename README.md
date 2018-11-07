@@ -8,9 +8,9 @@ Pytorch implementation of [FlowTrack](https://arxiv.org/pdf/1804.06208.pdf).
 ### TO DO:
 
 - [x] Human detection
-- [ ] Single person pose estimation
+- [x] Single person pose estimation
 	- [x] Building
-	- [ ] Training
+	- [x] Training
 - [x] Optical flow estimation
 - [x] Box propagation
 - [ ] Pose tracking
@@ -29,6 +29,14 @@ cd lib
 
 ### Demo
 
+#### Pose Estimation
+
+```shell
+python ./tools/pose/main.py
+```
+
+
+
 #### Detection
 
 Download pretrained [detection model](https://drive.google.com/file/d/18PKsPqSBx7C940zz95siAKiI_6aSE5hO/view?usp=sharing) into `models/detection/`. Refer to [pytorch-faster-rcnn](https://github.com/ruotianluo/pytorch-faster-rcnn) for more information.
@@ -36,6 +44,8 @@ Download pretrained [detection model](https://drive.google.com/file/d/18PKsPqSBx
 ```shell
 python ./tools/detection/demo.py
 ```
+
+#### 
 
 #### Optical Flow Estimation
 

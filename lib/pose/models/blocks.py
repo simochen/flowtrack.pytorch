@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+BN_MOMENTUM = 0.1
+
 def conv3x3(in_planes, out_planes, stride=1, bias=False):
     "3x3 convolution with padding"
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -12,19 +14,18 @@ def conv3x3(in_planes, out_planes, stride=1, bias=False):
 class BasicBlock(nn.Module):
     expansion = 1
     bias = False
-    affine = True
 
     def __init__(self, inplanes, planes, stride=1):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride, bias=self.bias)
-        self.bn1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes*self.expansion, 1, bias=self.bias)
-        self.bn2 = nn.BatchNorm2d(planes, affien=self.affine)
+        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         if stride != 1 or inplanes != planes*self.expansion:
             self.downsample = nn.Sequential(
                 nn.Conv2d(inplanes, planes*self.expansion, kernel_size=1, stride=stride, bias=self.bias),
-                nn.BatchNorm2d(planes*self.expansion, affine=self.affine) )
+                nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM) )
         else:
             self.downsample = nn.Sequential()
 
@@ -44,16 +45,15 @@ class BasicBlock(nn.Module):
 class PreBasicBlock(nn.Module):
     expansion = 1
     bias = False
-    affine = True
 
     def __init__(self, inplanes, planes, stride=1, ptype='preact'):
         super(PreBasicBlock, self).__init__()
         if ptype != 'no_preact':
             self.preact = nn.Sequential(
-                            nn.BatchNorm2d(inplanes, affine=self.affine),
+                            nn.BatchNorm2d(inplanes, momentum=BN_MOMENTUM),
                             nn.ReLU(inplace=True) )
         self.conv1 = conv3x3(inplanes, planes, stride, bias=self.bias)
-        self.bn1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes*self.expansion, 1, bias=self.bias)
         if stride != 1 or inplanes != planes*self.expansion:
@@ -81,23 +81,22 @@ class PreBasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
     bias = False
-    affine = True
 
     def __init__(self, inplanes, planes, stride=1):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=self.bias)
-        self.bn1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=self.bias)
-        self.bn2 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv3 = nn.Conv2d(planes, planes*self.expansion, kernel_size=1, bias=self.bias)
-        self.bn3 = nn.BatchNorm2d(planes*self.expansion, affine=self.affine)
+        self.bn3 = nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
 
         if stride != 1 or inplanes != planes*self.expansion:
             self.downsample = nn.Sequential(
                 nn.Conv2d(inplanes, planes*self.expansion, kernel_size=1, stride=stride, bias=self.bias),
-                nn.BatchNorm2d(planes*self.expansion, affine=self.affine) )
+                nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM) )
         else:
             self.downsample = nn.Sequential()
 
@@ -121,19 +120,18 @@ class Bottleneck(nn.Module):
 class PreBottleneck(nn.Module):
     expansion = 4
     bias = False
-    affine = True
 
     def __init__(self, inplanes, planes, stride=1, ptype='preact'):
         super(PreBottleneck, self).__init__()
         if ptype != 'no_preact':
             self.preact = nn.Sequential(
-                            nn.BatchNorm2d(inplanes, affine=self.affine),
+                            nn.BatchNorm2d(inplanes, momentum=BN_MOMENTUM),
                             nn.ReLU(inplace=True) )
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=self.bias)
-        self.bn1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=self.bias)
-        self.bn2 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv3 = nn.Conv2d(planes, planes * self.expansion, kernel_size=1, bias=self.bias)
         self.relu = nn.ReLU(inplace=True)
         if stride != 1 or inplanes != planes*self.expansion:
@@ -166,7 +164,6 @@ class PreBottleneck(nn.Module):
 class BottleneckX(nn.Module):
     expansion = 4
     bias = False
-    affine = True
 
     def __init__(self, inplanes, planes, baseWidth, cardinality, stride=1):
         super(BottleneckX, self).__init__()
@@ -175,23 +172,23 @@ class BottleneckX(nn.Module):
         conv1, bn1, conv2, bn2 = [], [], [], []
         for i in range(cardinality):
             conv1.append(nn.Conv2d(inplanes, D, kernel_size=1, bias=self.bias))
-            bn1.append(nn.BatchNorm2d(D, affine=self.affine))
+            bn1.append(nn.BatchNorm2d(D, momentum=BN_MOMENTUM))
             conv2.append(nn.Conv2d(D, D, kernel_size=3, stride=stride,
                                    padding=1, bias=self.bias))
-            bn2.append(nn.BatchNorm2d(D, affine=self.affine))
+            bn2.append(nn.BatchNorm2d(D, momentum=BN_MOMENTUM))
         self.conv1 = nn.ModuleList(conv1)
         self.bn1 = nn.ModuleList(bn1)
         self.conv2 = nn.ModuleList(conv2)
         self.bn2 = nn.ModuleList(bn2)
 
         self.conv3 = nn.Conv2d(D*cardinality, planes*self.expansion, kernel_size=1, bias=self.bias)
-        self.bn3 = nn.BatchNorm2d(planes*self.expansion, affine=self.affine)
+        self.bn3 = nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
 
         if stride != 1 or inplanes != planes*self.expansion:
             self.downsample = nn.Sequential(
                 nn.Conv2d(inplanes, planes*self.expansion, kernel_size=1, stride=stride, bias=self.bias),
-                nn.BatchNorm2d(planes*self.expansion, affine=self.affine) )
+                nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM) )
         else:
             self.downsample = nn.Sequential()
 
@@ -222,7 +219,6 @@ class BottleneckX(nn.Module):
 class PreBottleneckX(nn.Module):
     expansion = 4
     bias = False
-    affine = True
 
     def __init__(self, inplanes, planes, baseWidth, cardinality, stride=1, ptype='preact'):
         super(PreBottleneckX, self).__init__()
@@ -230,15 +226,15 @@ class PreBottleneckX(nn.Module):
 
         if ptype != 'no_preact':
             self.preact = nn.Sequential(
-                            nn.BatchNorm2d(inplanes, affine=self.affine),
+                            nn.BatchNorm2d(inplanes, momentum=BN_MOMENTUM),
                             nn.ReLU(inplace=True) )
         conv1, bn1, conv2, bn2 = [], [], [], []
         for i in range(cardinality):
             conv1.append(nn.Conv2d(inplanes, D, kernel_size=1, bias=self.bias))
-            bn1.append(nn.BatchNorm2d(D, affine=self.affine))
+            bn1.append(nn.BatchNorm2d(D, momentum=BN_MOMENTUM))
             conv2.append(nn.Conv2d(D, D, kernel_size=3, stride=stride,
                                    padding=1, bias=self.bias))
-            bn2.append(nn.BatchNorm2d(D, affine=self.affine))
+            bn2.append(nn.BatchNorm2d(D, momentum=BN_MOMENTUM))
         self.conv1 = nn.ModuleList(conv1)
         self.bn1 = nn.ModuleList(bn1)
         self.conv2 = nn.ModuleList(conv2)
@@ -283,30 +279,29 @@ class PreBottleneckX(nn.Module):
 class PyramidBlock(nn.Module):
     expansion = 4
     bias = False
-    affine = True
 
     def __init__(self, inplanes, planes, input_res, cardinality, stride=1):
         super(PyramidBlock, self).__init__()
         self.conv1_1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=self.bias)
-        self.bn1_1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1_1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv2_1 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=self.bias)
-        self.bn2_1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn2_1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv3_1 = nn.Conv2d(planes, planes*self.expansion, kernel_size=1, bias=self.bias)
-        self.bn3_1 = nn.BatchNorm2d(planes*self.expansion, affine=self.affine)
+        self.bn3_1 = nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
         if stride != 1 or inplanes != planes*self.expansion:
             self.downsample = nn.Sequential(
                 nn.Conv2d(inplanes, planes*self.expansion, kernel_size=1, stride=stride, bias=self.bias),
-                nn.BatchNorm2d(planes*self.expansion, affine=self.affine) )
+                nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM) )
         else:
             self.downsample = nn.Sequential()
 
         self.conv1_2 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=self.bias)
-        self.bn1_2 = nn.BatchNorm2d(planes, affine=self.affine)
-        self.bn2_2 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1_2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.bn2_2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv3_2 = nn.Conv2d(planes, planes*self.expansion, kernel_size=1, bias=self.bias)
-        self.bn3_2 = nn.BatchNorm2d(planes*self.expansion, affine=self.affine)
+        self.bn3_2 = nn.BatchNorm2d(planes*self.expansion, momentum=BN_MOMENTUM)
         output_res = ((input_res[0]+1)/stride, (input_res[1]+1)/stride)
         pool, conv, upsample = [], [], []
         for i in range(cardinality):
@@ -358,19 +353,18 @@ class PyramidBlock(nn.Module):
 class PrePyramidBlock(nn.Module):
     expansion = 4
     bias = False
-    affine = True
-
+    
     def __init__(self, inplanes, planes, input_res, cardinality, stride=1, ptype='preact'):
         super(PrePyramidBlock, self).__init__()
         if ptype != 'no_preact':
             self.preact = nn.Sequential(
-                            nn.BatchNorm2d(inplanes, affine=self.affine),
+                            nn.BatchNorm2d(inplanes, momentum=BN_MOMENTUM),
                             nn.ReLU(inplace=True) )
         self.conv1_1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=self.bias)
-        self.bn1_1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1_1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv2_1 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=self.bias)
-        self.bn2_1 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn2_1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv3_1 = nn.Conv2d(planes, planes*self.expansion, kernel_size=1, bias=self.bias)
         self.relu = nn.ReLU(inplace=True)
         if stride != 1 or inplanes != planes*self.expansion:
@@ -379,8 +373,8 @@ class PrePyramidBlock(nn.Module):
             self.downsample = nn.Sequential()
 
         self.conv1_2 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=self.bias)
-        self.bn1_2 = nn.BatchNorm2d(planes, affine=self.affine)
-        self.bn2_2 = nn.BatchNorm2d(planes, affine=self.affine)
+        self.bn1_2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.bn2_2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv3_2 = nn.Conv2d(planes, planes*self.expansion, kernel_size=1, bias=self.bias)
         output_res = ((input_res[0]+1)/stride, (input_res[1]+1)/stride)
         pool, conv, upsample = [], [], []

@@ -11,6 +11,7 @@ import torch.utils.model_zoo as model_zoo
 
 from .blocks import *
 
+BN_MOMENTUM = 0.1
 
 # __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
 #         'resnet152']
@@ -32,7 +33,7 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
                     bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
+        self.bn1 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
@@ -120,15 +121,15 @@ class deconv_resnet(nn.Module):
         if num_layers == 50:
             self.resnet = resnet50()
             # self.resnet = resnet50(pretrained)
-            model_path = 'data/pretrained/resnet50_caffe.pth'
+            model_path = 'data/pretrained/resnet50.pth'
         elif num_layers == 101:
             self.resnet = resnet101()
             # self.resnet = resnet101(pretrained)
-            model_path = 'data/pretrained/resnet101_caffe.pth'
+            model_path = 'data/pretrained/resnet101.pth'
         elif num_layers == 152:
             self.resnet = resnet152()
             # self.resnet = resnet152(pretrained)
-            model_path = 'data/pretrained/resnet152_caffe.pth'
+            model_path = 'data/pretrained/resnet152.pth'
 
         if pretrained:
             print("Loading pretrained weights from %s" %(model_path))
@@ -140,34 +141,34 @@ class deconv_resnet(nn.Module):
 
         self.deconv = nn.Sequential(
                     nn.ConvTranspose2d(2048, num_feats, kernel_size=4, stride=2, padding=1, bias = bias),
-                    nn.BatchNorm2d(num_feats),
+                    nn.BatchNorm2d(num_feats, momentum=BN_MOMENTUM),
                     nn.ReLU(inplace=True),
                     nn.ConvTranspose2d(num_feats, num_feats, kernel_size=4, stride=2, padding=1, bias=bias),
-                    nn.BatchNorm2d(num_feats),
+                    nn.BatchNorm2d(num_feats, momentum=BN_MOMENTUM),
                     nn.ReLU(inplace=True),
                     nn.ConvTranspose2d(num_feats, num_feats, kernel_size=4, stride=2, padding=1, bias=bias),
-                    nn.BatchNorm2d(num_feats),
+                    nn.BatchNorm2d(num_feats, momentum=BN_MOMENTUM),
                     nn.ReLU(inplace=True) )
 
         self.heatmap = nn.Conv2d(num_feats, num_classes, kernel_size=1)
 
-        for m in self.deconv:
+        for m in self.deconv.modules():
             if isinstance(m, nn.ConvTranspose2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.weight.data.normal_(0, 0.001)
+                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                # m.weight.data.normal_(0, math.sqrt(2. / n))
                 # bound = math.sqrt(6. / n)
                 # m.weight.data.uniform_(-bound, bound)
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-        def _init_weights(m):
-            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-            m.weight.data.normal_(0, math.sqrt(2. / n))
-            # bound = math.sqrt(6. / n)
-            # m.weight.data.uniform_(-bound, bound)
-
-        _init_weights(self.heatmap)
+        for m in self.heatmap.modules():
+            if isinstance(m, nn.Conv2d):
+                # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                # m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.weight.data.normal_(0, 0.001)
+                m.bias.data.zero_()
 
 
         def set_bn_fix(m):
@@ -175,7 +176,7 @@ class deconv_resnet(nn.Module):
             if classname.find('BatchNorm') != -1:
                 for p in m.parameters(): p.requires_grad=False
 
-        
+
         # self.resnet.apply(set_bn_fix)
 
     def forward(self, x):
