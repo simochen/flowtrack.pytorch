@@ -34,7 +34,7 @@ class DefaultConfig(object):
     backbone = 'resnet50'
     stride = 4
     with_logits = False
-    with_mask = False
+    with_mask = True
     with_bg = False
 
     # ====================== Training Options ======================
