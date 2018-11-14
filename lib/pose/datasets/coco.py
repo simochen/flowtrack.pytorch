@@ -107,7 +107,7 @@ class COCO(data.Dataset):
         pheight = anno['bbox'][3]
         pwidth = anno['bbox'][2]
         scale = max(pheight, pwidth*self.opt.input_res[0]/self.opt.input_res[1]) * 1.25
-        center = anno['objpos']
+        center = np.array(anno['objpos'])
         rot = 0
         factor = 1
         out_h = self.opt.input_res[0]//self.opt.stride
@@ -154,6 +154,7 @@ class COCO(data.Dataset):
                 'joints': joints,
                 'center': center,
                 'scale': scale,
+                'score': 1,
                 'area': pheight*pwidth,
                 'ref_scale':ref_scale
             }
@@ -198,7 +199,7 @@ class COCO(data.Dataset):
         for img_kpts in keypoints:
             if len(img_kpts) == 0:
                 continue
-            kpts = np.array([img_kpts[i]['keypoints'] for i in range(len(img_kpts))])
+            kpts = np.array([img_kpts[i]['joints'] for i in range(len(img_kpts))])
             kpts = kpts.reshape((kpts.shape[0], -1))
             result = [{'image_id': img_kpts[i]['image'],
                         'category_id': 1,
@@ -232,7 +233,8 @@ class COCO(data.Dataset):
         return dict(zip(keys, coco_eval.stats))
 
     def evaluate(self, preds, meta, out_dir):
-        res_folder = op.path.join(out_dir, 'results')
+        delta = 2 * np.array([.26, .25, .25, .35, .35, .79, .79, .72, .72, .62,.62, 1.07, 1.07, .87, .87, .89, .89])/10.0
+        res_folder = os.path.join(out_dir, 'results')
         if not os.path.exists(res_folder):
             os.makedirs(res_folder)
         res_file = os.path.join(
@@ -241,7 +243,7 @@ class COCO(data.Dataset):
         _keypoints = []
         for i in range(len(preds)):
             _keypoints.append({
-                'keypoints': preds[i],
+                'joints': preds[i],
                 'area': meta['area'][i],
                 'score': meta['score'][i],
                 'image': meta['image'][i]
@@ -257,7 +259,7 @@ class COCO(data.Dataset):
                 kpt_score = 0
                 num_kpts = 0
                 for j in range(self.num_joints):
-                    score = kpt['keypoints'][j,2]
+                    score = kpt['joints'][j,2]
                     if score > self.opt.kpt_threshold:
                         kpt_score += score
                         num_kpts += 1
@@ -265,11 +267,11 @@ class COCO(data.Dataset):
                     kpt_score /= num_kpts
                 # rescoring
                 kpt['score'] = box_score * kpt_score
-            keep = nms_oks(img_kpts, self.opt.oks_threshold)
+            keep = nms_oks(img_kpts, self.opt.oks_threshold, delta)
             if len(keep) == 0:
                 nms_keypoints.append(img_kpts)
             else:
-                nms_keypoints.append(img_kpts[i] for i in keep)
+                nms_keypoints.append([img_kpts[i] for i in keep])
 
         self._write_results(nms_keypoints, res_file)
 

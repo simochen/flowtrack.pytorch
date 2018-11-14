@@ -11,11 +11,11 @@ from utils import *
 def max_preds(heatmap, threshold=0):
     n, c, h, w = heatmap.size()
     scores, indexes = torch.max(heatmap.view(n, c, -1), -1)
-    x = indexes.fmod(w)
-    y = indexes.div(w)
+    x = indexes.fmod(w).float()
+    y = indexes.div(w).float()
     coords = torch.stack((x, y), dim=2)
     scores = scores.view(n, c, 1)
-    mask = scores.gt(threshold)
+    mask = scores.gt(threshold).float()
     coords = coords.mul(mask)
     return coords.cpu().numpy(), scores.cpu().numpy()
 
@@ -26,11 +26,11 @@ def final_preds(heatmap, center, scale, opt):
         for i in range(n):
             for j in range(c):
                 hm = heatmap[i,j]
-                x = coords[n,p,0]
-                y = coords[n,p,1]
+                x = int(coords[i,j,0])
+                y = int(coords[i,j,1])
                 if 0 < x < w-1 and 0 < y < h-1:
-                    diff = np.array([hm[y,x+1]-hm[y,x-1], hm[y+1,x]-hm[y-1,x])
-                    coords[n,p] += np.sign(diff) * 0.25
+                    diff = np.array([hm[y,x+1]-hm[y,x-1], hm[y+1,x]-hm[y-1,x]])
+                    coords[i,j] += np.sign(diff) * 0.25
     coords = transform_preds(coords, center, scale, (h, w))
     return coords, scores
 
@@ -72,7 +72,7 @@ def compute_oks(pred, anno, ref_scale, delta, ground_truth=True, threshold=0):
         if ground_truth:
             is_count = anno_joints[:, 2] != 2   # [cnt]
         else:
-            is_count = (anno_joints[:,2] >= threshold) and (pred_joints[:,2] >= threshold)
+            is_count = np.logical_and(anno_joints[:,2] >= threshold, pred_joints[:,2] >= threshold)
         if is_count.sum() != 0:
             dist = pow((anno_joints[is_count,:2]-pred_joints[is_count,:2]),2).sum(1)   # [cnt]
             d = pow(delta[is_count],2)      # [cnt]
@@ -134,14 +134,13 @@ def accuracy(output, target, hm_type='gaussian', thr=0.5):
     First value to be returned is average accuracy across 'idxs',
     followed by individual accuracies
     '''
-    idx = list(range(output.shape[1]))  # [0, 1, ..., num_joints-1]
+    n, c, h, w = output.size()
+    idx = list(range(c))  # [0, 1, ..., num_joints-1]
     norm = 1.0
     if hm_type == 'gaussian':
-        pred, _ = get_max_preds(output)  # [batch, num_joints, 2] (x, y)
-        target, _ = get_max_preds(target)
-        h = output.shape[2]
-        w = output.shape[3]
-        norm = np.ones((pred.shape[0], 2)) * np.array([h, w]) / 10
+        pred, _ = max_preds(output)  # [batch, num_joints, 2] (x, y)
+        target, _ = max_preds(target)
+        norm = np.ones((n, 2)) * np.array([h, w]) / 10
     dists = calc_dists(pred, target, norm)
 
     acc = np.zeros((len(idx) + 1))

@@ -209,8 +209,7 @@ def train(train_loader, model, criterion, optimizer, opt):
 		loss.backward()
 		optimizer.step()
 		losses.update(loss.item(), inputs.size(0))
-		_, avg_acc, cnt, pred = accuracy(output.detach().cpu().numpy(),
-										 target_hm.detach().cpu().numpy())
+		_, avg_acc, cnt, pred = accuracy(output.detach(), target_hm.detach())
 		acc.update(avg_acc, cnt)
 
 		pbar.set_description("Training")
@@ -229,7 +228,7 @@ def validate(valid_loader, valid_data, model, criterion, opt):
 	num_samples = len(valid_data)
 	all_preds = np.zeros((num_samples, num_joints[opt.dataset], 3), dtype=np.float32)
 	all_boxes = np.zeros((num_samples, 6))
-	metas = {'image':[], 'area':[], 'scores':[]}
+	metas = {'image':[], 'area':[], 'score':[]}
 	idx = 0
 	pbar = tqdm(total=len(valid_loader))
 	predictions = []
@@ -256,8 +255,7 @@ def validate(valid_loader, valid_data, model, criterion, opt):
 
 			batch_size = inputs.size(0)
 			losses.update(loss.item(), batch_size)
-			_, avg_acc, cnt, pred = accuracy(output.cpu().numpy(),
-											 target_hm.cpu().numpy())
+			_, avg_acc, cnt, pred = accuracy(output, target_hm)
 			acc.update(avg_acc, cnt)
 
 			# compute actual ACC

@@ -51,14 +51,14 @@ class DefaultConfig(object):
     # ====================== checkpoint Options ======================
     checkpoint_path = './checkpoints'
     exp_id = 'exp_01'
-    resume = None   # resume from a checkpoint
+    resume = None#'deconv_resnet_resnet50_best.pth'   # resume from a checkpoint
     save_every = 5  # save every N epoch
 
     # ====================== Evaluation Options ======================
     adjust_coords = True
     nms_threshold = 0.0
-    oks_threshold = 0.0
-    kpt_threshold = 0.0
+    oks_threshold = 0.9
+    kpt_threshold = 0.2
     nms_window_size = 3
 
 
