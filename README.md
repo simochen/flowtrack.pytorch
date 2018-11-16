@@ -27,17 +27,25 @@ cd lib
 
 
 
-### Demo
+### Training
 
 #### Pose Estimation
 
-Download [data folder](https://drive.google.com/drive/folders/1RqsY3ONtYlxQfLg2acJm36qTtqvHDCik?usp=sharing) as `$ROOT/data`.
+Download [data folder](https://drive.google.com/drive/folders/1RqsY3ONtYlxQfLg2acJm36qTtqvHDCik?usp=sharing) as `$ROOT/data`. 
 
 ```shell
 python ./tools/pose/main.py
 ```
 
+The official code is released on [Microsoft/human-pose-estimation.pytorch](https://github.com/simochen/flowtrack.pytorch/issues/url).
 
+### 
+
+### Demo
+
+#### Pose Estimation
+
+`#TODO`
 
 #### Detection
 
