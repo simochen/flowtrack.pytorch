@@ -47,6 +47,7 @@ class DefaultConfig(object):
     lr = 1e-3 # initial learning rate
     momentum = 0.9
     weight_decay = 1e-4 # loss function
+    draw_freq = 100
 
     # ====================== checkpoint Options ======================
     checkpoint_path = './checkpoints'

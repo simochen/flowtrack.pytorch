@@ -45,6 +45,7 @@ class COCO(data.Dataset):
 
         # self.mean = [103.9438, 113.9438, 119.8627]    # COCO
         # self.mean = [103.939, 116.779, 123.68]      # pretrained
+        # ImageNet
         self.mean = [0.485, 0.456, 0.406]
         self.std = [0.229, 0.224, 0.225]
 
@@ -58,11 +59,12 @@ class COCO(data.Dataset):
         else:
             mean = np.zeros(3)
             std = np.zeros(3)
-            with open('coco/annotations/person_keypoints_train2017.json') as f:
+            with open(os.path.join(self.opt.data_path,'annotations','person_keypoints_train2017.json')) as f:
                 anno = json.load(f)
             for image in anno['images']:
                 img_path = os.path.join(self.img_folder, image['file_name'])
                 img = cv2.imread(img_path) / 255.0
+                img = img[:,:,::-1]
                 mean += img.reshape(-1, img.shape[-1]).mean(0)
                 std += img.reshape(-1, img.shape[-1]).std(0)
             mean /= len(anno['images'])
@@ -85,6 +87,7 @@ class COCO(data.Dataset):
         # load image
         img_path = os.path.join(self.img_folder, '{}.jpg'.format(anno['img_name']))
         img = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION) / 255.0
+        img = img[:,:,::-1]
         img = normalize(img, np.array(self.mean), np.array(self.std)).astype(np.float32)
         # img = torch.from_numpy(img.transpose((2,0,1))).float().div(255) # CxHxW
 
@@ -122,11 +125,14 @@ class COCO(data.Dataset):
                     print("Flip")
 
             # transform (scale, rotate, crop_pad)
-            random.seed()
             if random.random() < self.opt.rotate_prob:
-                rot = (random.random()*2-1)*self.opt.rotate_degree_max
+                # rot = (random.random()*2-1)*self.opt.rotate_degree_max
+                degree = self.opt.rotate_degree_max
+                rot = np.clip(np.random.randn()*degree, -degree*2, degree*2)
             if random.random() < self.opt.scale_prob:
-                factor = random.random()*(self.opt.scale_max-self.opt.scale_min)+self.opt.scale_min
+                # factor = random.random()*(self.opt.scale_max-self.opt.scale_min)+self.opt.scale_min
+                sc = max(self.opt.scale_max-1, 1-self.opt.scale_min)
+                factor = np.clip(np.random.randn()*sc + 1, self.opt.scale_min, self.opt.scale_max)
             if self.opt.debug:
                 print("Scale:", factor)
                 print("Rotate:", rot)
@@ -147,7 +153,7 @@ class COCO(data.Dataset):
             jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
             joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
 
-            sf = self.opt.input_res[0]/scale
+            sf = self.opt.input_res[0]/pheight
             ref_scale.mul_(sf*sf/self.opt.stride/self.opt.stride)
             meta = {
                 'image': int(anno['img_name']),

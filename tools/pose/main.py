@@ -6,12 +6,12 @@ from config import opt
 import os
 import torch
 import cv2
-import scipy.io
 import json
+import shutil
 import models
 import datasets
 from torch.utils.data import DataLoader
-from torch.autograd import Variable
+from tensorboardX import SummaryWriter
 
 import torch.backends.cudnn as cudnn
 from tqdm import tqdm
@@ -67,11 +67,27 @@ def main(**kwargs):
 	model = getattr(models, opt.model)(num_layers = num_layers,
 									   num_classes = num_classes,
 									   pretrained = True)
+
+	# tensorboard writer
+	log_dir = os.path.join(opt.work_dir, 'log')
+	if os.path.exists(log_dir):
+		shutil.rmtree(log_dir)
+	writer_dict = {
+		'writer': SummaryWriter(log_dir=log_dir),
+		'train_global_steps': 0,
+		'valid_global_steps': 0,
+	}
+	dump_input = torch.rand((opt.batch_size,
+							 3,
+							 opt.input_res[0],
+							 opt.input_res[1]))
+	writer_dict['writer'].add_graph(model, (dump_input, ), verbose=False)
+
 	if opt.use_gpu:
 		# model = torch.nn.DataParallel(model).cuda()
 		model = model.cuda()
 
-	# Step 2 : loss function and optimizermAP
+	# Step 2 : loss function and optimizer mAP
 	lr = opt.lr
 	if opt.with_logits:
 		criterion = FocalLoss(num_joints[opt.dataset], opt.with_bg)
@@ -140,8 +156,8 @@ def main(**kwargs):
 	for epoch in range(opt.start_epoch, opt.max_epoch):
 		scheduler.step()
 		print('\nEpoch: %d/%d | LR: %.8f' %(epoch+1, opt.max_epoch, optimizer.param_groups[0]['lr']))
-		train_loss = train(train_loader, model, criterion, optimizer, opt)
-		valid_loss, APs = validate(valid_loader, valid_data, model, criterion, opt)
+		train_loss = train(train_loader, model, criterion, optimizer, opt, writer_dict)
+		valid_loss, APs = validate(valid_loader, valid_data, model, criterion, opt, writer_dict)
 
 		valid_mAP = np.mean(APs)
 		if opt.dataset == 'mpii':
@@ -179,7 +195,7 @@ def main(**kwargs):
 			filename = os.path.join(opt.work_dir, filename)
 			torch.save(checkpoint, filename)
 
-def train(train_loader, model, criterion, optimizer, opt):
+def train(train_loader, model, criterion, optimizer, opt, writer_dict):
 	pbar = tqdm(total=len(train_loader))
 	losses = AverageMeter()
 	acc = AverageMeter()
@@ -212,13 +228,20 @@ def train(train_loader, model, criterion, optimizer, opt):
 		_, avg_acc, cnt, pred = accuracy(output.detach(), target_hm.detach())
 		acc.update(avg_acc, cnt)
 
+		if i % opt.draw_freq == 0:
+			writer = writer_dict['writer']
+			global_steps = writer_dict['train_global_steps']
+			writer.add_scalar('train_loss', losses.val, global_steps)
+			writer.add_scalar('train_acc', acc.val, global_steps)
+			writer_dict['train_global_steps'] = global_steps + 1
+
 		pbar.set_description("Training")
 		pbar.set_postfix(Loss=losses.val, Loss_AVG=losses.avg, Acc=acc.val, Acc_AVG=acc.avg)
 		pbar.update(1)
 	pbar.close()
 	return losses.avg
 
-def validate(valid_loader, valid_data, model, criterion, opt):
+def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 	global num_joints
 	losses = AverageMeter()
 	acc = AverageMeter()
@@ -296,6 +319,18 @@ def validate(valid_loader, valid_data, model, criterion, opt):
 			mAP = eval_mAP(predictions, annos, ref_scale, delta)
 
 			results, ap = valid_data.evaluate(all_preds, metas, opt.work_dir)
+
+		if writer_dict:
+			writer = writer_dict['writer']
+			global_steps = writer_dict['valid_global_steps']
+			writer.add_scalar('valid_loss', losses.avg, global_steps)
+			writer.add_scalar('valid_acc', acc.avg, global_steps)
+			if isinstance(results, list):
+				for i in results:
+					writer.add_scalars('valid', dict(i), global_steps)
+			else:
+				writer.add_scalars('valid', dict(results), global_steps)
+			writer_dict['valid_global_steps'] = global_steps + 1
 
 	return losses.avg, mAP
 
