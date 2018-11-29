@@ -170,9 +170,9 @@ def main(**kwargs):
 			loss['APs'].append(APs_dict)
 			torch.save(loss, os.path.join(opt.work_dir, 'loss.t7'))
 
-			# save checkpoint
-			if train_loss < best_loss:
-				best_loss = train_loss
+			# save checkpoint (best valid loss)
+			if valid_loss < best_loss:
+				best_loss = valid_loss
 				checkpoint = {
 					'epoch': epoch + 1,
 					'model': opt.model,
@@ -182,6 +182,7 @@ def main(**kwargs):
 				filename = '_'.join([opt.model, opt.backbone, 'best'])+'.pth'
 				filename = os.path.join(opt.work_dir, filename)
 				torch.save(checkpoint, filename)
+			# save every i epoch
 			if (epoch+1) % opt.save_every == 0:
 				checkpoint = {
 					'epoch': epoch + 1,
@@ -276,6 +277,15 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 
 			# compute output
 			output = model(inputs)
+
+			if opt.flip_test:
+				# inputs: [B, C, H, W]
+				input_flipped = inputs[:, :, :, ::-1].clone()
+				output_flipped = model(input_flipped)
+				output_flipped = swaplr_image(output_flipped.cpu(), opt.datset).cuda()
+
+				output = (output + output_flipped) * 0.5
+
 			# compute loss
 			loss = criterion(output, target_hm, target_weight, mask)
 
@@ -291,7 +301,7 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 			if opt.with_bg:
 				output = output[:,:-1]
 
-			preds, scores = final_preds(output, c, s, opt)
+			preds, scores = final_preds(output, c, s, opt.adjust_coords)
 
 			all_preds[idx:idx+batch_size] = np.concatenate((preds, scores), axis=2)
 			if opt.dataset == 'coco':

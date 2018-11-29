@@ -33,118 +33,11 @@ def normalize(x, mean, std):
 def get_img(img, mean, std):
     return img.numpy().transpose((1,2,0)) * std.reshape((1,1,-1)) + mean.reshape((1,1,-1))
 
+NUM_JOINTS = {'mpii':16, 'aic':14, 'coco':17}
 
-def swaplr_joint(joints, width, dataset='coco'):
+def get_pairs(dataset='coco'):
     """
-    flip coords
-    Input: joints - (n x)16 x 3 (x, y, is_visible)
-    """
-    # MPII R arms: 12(shoulder), 11(elbow), 10(wrist)
-    #      L arms: 13(shoulder), 14(elbow), 15(wrist)
-    #      R leg: 2(hip), 1(knee), 0(ankle)
-    #      L leg: 3(hip), 4(knee), 5(ankle)
-    #      6 - pelvis, 7 - thorax, 8 - upper neck, 9 - head top
-    # MPII R arms: 2(shoulder), 3(elbow), 4(wrist)
-    #      L arms: 5(shoulder), 6(elbow), 7(wrist)
-    #      R leg: 8(hip), 9(knee), 10(ankle)
-    #      L leg: 11(hip), 12(knee), 13(ankle)
-    #      14 - pelvis-thorax, 1 - upper neck, 0 - head top
-    if dataset ==  'mpii':
-        right = [0, 1, 2, 10, 11, 12]
-        left =  [5, 4, 3, 15, 14, 13]
-        njoints = 16
-        nsym = 6
-    # AIC  R arms: 0(shoulder), 1(elbow), 2(wrist)
-    #      L arms: 3(shoulder), 4(elbow), 5(wrist)
-    #      R leg: 6(hip), 7(knee), 8(ankle)
-    #      L leg: 9(hip), 10(knee), 11(ankle)
-    #      12 - head top,  13 - neck
-    elif dataset == 'aic':
-        right = [0, 1, 2, 6, 7, 8]
-        left  = [3, 4, 5, 9,10,11]
-        njoints = 14
-        nsym = 6
-    # COCO R arm: 6(shoulder), 8(elbow), 10(wrist)
-    #      L arm: 5(shoulder), 7(elbow), 9(wrist)
-    #      R leg: 12(hip), 14(knee), 16(ankle)
-    #      L leg: 11(hip), 13(knee), 15(ankle)
-    #       face: 0(nose), 1(l-eye), 2(r-eye), 3(l-ear), 4(r-ear)
-    elif dataset == 'coco':
-        right = [2, 4, 6, 8,10, 12, 14, 16]
-        left  = [1, 3, 5, 7, 9, 11, 13, 15]
-        njoints = 17
-        nsym = 8
-    else:
-        print('Not supported dataset: ' + dataset)
-
-    # Flip x coords
-    j = joints.view(-1, 3)
-    j[:, 0].neg_().add_(width-1)
-    # Swap left-right joints
-    if joints.dim() > 2 and joints.size(0) > 1:
-        n = joints.size(0)
-        right = np.tile(right,n) + (np.arange(n)*njoints).repeat(nsym)
-        left = np.tile(left,n) + (np.arange(n)*njoints).repeat(nsym)
-    tmp = j[right, :].clone()
-    j[right, :] = j[left, :]
-    j[left, :] = tmp
-
-    return joints
-
-
-def fliplr_(img, meta):
-    """
-    flip image
-    """
-    if img.dim() == 3:
-        img = torch.from_numpy(np.flip(img.numpy(), 2).copy())
-        width = img.size(2)
-        # center person
-        meta['objpos_self'][0] = width - 1 - meta['objpos_self'][0]
-        meta['joint_self'] = swaplr_joint(meta['joint_self'], width)
-        # other people
-        for i in range(meta['numOtherPeople']):
-            meta['objpos_other'][i][0] = width - 1 - meta['objpos_other'][i][0]
-        if meta['numOtherPeople'] > 0:
-            meta['joint_others'] = swaplr_joint(meta['joint_others'], width)
-    elif img.dim() == 4:
-        for i in range(img.size(0)):
-            img[i], meta[i] = fliplr_(img[i], meta[i])
-    return img, meta
-
-
-def fliplr(img):
-    if img.ndim == 3:   # H x W x C
-        img = np.flip(img, 1).copy()
-    elif img.ndim == 4: # B x H x W x C
-        img = np.flip(img, 2).copy()
-    return img
-
-def fliplr_tensor(img):
-    """
-    flip image: Tensor
-    """
-    if img.dim() == 3:      # C x H x W
-        img = torch.from_numpy(np.flip(img.numpy(), 2).copy())
-    elif img.dim() == 4:    # B x C x H x W
-        img = torch.from_numpy(np.flip(img.numpy(), 3).copy())
-    return img
-
-def swap(img, pairs):
-    if img.dim() == 3:
-        tmp = img[pairs[0], :].clone()
-        img[pairs[0], :] = img[pairs[1], :]
-        img[pairs[1], :] = tmp
-    elif img.dim() == 4:
-        tmp = img[:, pairs[0]].clone()
-        img[:, pairs[0]] = img[:, pairs[1]]
-        img[:, pairs[1]] = tmp
-    return img
-
-def swaplr_image(img, dataset='coco'):
-    """
-    swap images according to channel index
-    Input: joints - (n x)17 x 3 (x, y, is_visible)
+    get matched joint pairs
     """
     # MPII R arms: 12(shoulder), 11(elbow), 10(wrist)
     #      L arms: 13(shoulder), 14(elbow), 15(wrist)
@@ -177,6 +70,74 @@ def swaplr_image(img, dataset='coco'):
         joint_left  = [1, 3, 5, 7, 9, 11, 13, 15]
     else:
         print('Not supported dataset: ' + dataset)
+
+    return joint_right, joint_left
+
+def swaplr_joint(joints, width, dataset='coco'):
+    """
+    flip coords
+    Input: joints - (n x)16 x 3 (x, y, is_visible)
+    """
+
+    right, left = get_pairs(dataset)
+    njoints = NUM_JOINTS[dataset]
+    nsym = len(right)
+
+    # Flip x coords
+    j = joints.view(-1, 3)
+    j[:, 0].neg_().add_(width-1)
+    # Swap left-right joints
+    if joints.dim() > 2 and joints.size(0) > 1:
+        n = joints.size(0)
+        right = np.tile(right,n) + (np.arange(n)*njoints).repeat(nsym)
+        left = np.tile(left,n) + (np.arange(n)*njoints).repeat(nsym)
+    tmp = j[right, :].clone()
+    j[right, :] = j[left, :]
+    j[left, :] = tmp
+
+    return joints
+
+
+def fliplr(img):
+    if img.ndim == 3:   # H x W x C
+        img = np.flip(img, 1).copy()
+    elif img.ndim == 4: # B x H x W x C
+        img = np.flip(img, 2).copy()
+    return img
+
+def fliplr_tensor(img):
+    """
+    flip image: Tensor
+    """
+    if img.dim() == 3:      # C x H x W
+        img = torch.from_numpy(np.flip(img.numpy(), 2).copy())
+    elif img.dim() == 4:    # B x C x H x W
+        img = torch.from_numpy(np.flip(img.numpy(), 3).copy())
+    return img
+
+def swap(img, pairs):
+    """
+    swap images according to channel index
+    Input: img - Tensor[(batch_size,) num_joints, height, width]
+    """
+    if img.dim() == 3:
+        img = img[:, :, ::-1]
+        tmp = img[pairs[0], :].clone()
+        img[pairs[0], :] = img[pairs[1], :]
+        img[pairs[1], :] = tmp
+    elif img.dim() == 4:
+        img = img[:, :, :, ::-1]
+        tmp = img[:, pairs[0]].clone()
+        img[:, pairs[0]] = img[:, pairs[1]]
+        img[:, pairs[1]] = tmp
+    return img
+
+def swaplr_image(img, dataset='coco'):
+    """
+    swap images according to channel index
+    Input: img - Tensor[(batch_size,) num_joints, height, width]
+    """
+    joint_right, joint_left = get_pairs(dataset)
 
     pairs = np.array([joint_right, joint_left]).astype(int)
     img = swap(img, pairs)

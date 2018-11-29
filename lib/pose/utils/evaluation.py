@@ -19,10 +19,10 @@ def max_preds(heatmap, threshold=0):
     coords = coords.mul(mask)
     return coords.cpu().numpy(), scores.cpu().numpy()
 
-def final_preds(heatmap, center, scale, opt):
+def final_preds(heatmap, center, scale, adjust_coords=False):
     coords, scores = max_preds(heatmap)
     n, c, h, w = heatmap.size()
-    if opt.adjust_coords:
+    if adjust_coords:
         for i in range(n):
             for j in range(c):
                 hm = heatmap[i,j]

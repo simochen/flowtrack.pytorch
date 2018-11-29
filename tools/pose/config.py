@@ -56,6 +56,7 @@ class DefaultConfig(object):
     #
     # # ====================== Evaluation Options ======================
     # adjust_coords = True
+    # flip_test = False
     # oks_threshold = 0.9
     # kpt_threshold = 0.2
 
@@ -83,7 +84,7 @@ class DefaultConfig(object):
     sigma = 2
 
     # ======================= Model Options =======================
-    model = 'deconv_resnet'
+    model = 'deconv'
     backbone = 'resnet50'
     stride = 4
     with_logits = False
@@ -104,13 +105,14 @@ class DefaultConfig(object):
 
     # ====================== checkpoint Options ======================
     checkpoint_path = './checkpoints'
-    exp_id = 'exp_01'
+    exp_id = 'exp_02'
     resume = None #'pose_net_resnet50_best.pth'   # resume from a checkpoint
-    save_every = 5  # save every N epoch
+    save_every = 10  # save every N epoch
     run_type = 'trainval'
 
     # ====================== Evaluation Options ======================
     adjust_coords = True
+    flip_test = False
     oks_threshold = 0.9
     kpt_threshold = 0.2
 

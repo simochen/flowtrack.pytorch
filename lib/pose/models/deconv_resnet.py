@@ -115,13 +115,13 @@ resnet_dict = {18: (BasicBlock, [2, 2, 2, 2]),
                101: (Bottleneck, [3, 4, 23, 3]),
                152: (Bottleneck, [3, 8, 36, 3])}
 
-def deconv_resnet(num_layers=50, num_classes=17, pretrained=True):
+def deconv(num_layers=50, num_classes=17, pretrained=True):
     block, layers = resnet_dict[num_layers]
 
     model = PoseResNet(block, layers, num_classes)
 
     if pretrained:
-        model_path = os.path.join('data', 'pretrained', 'resnet{}.pth'.format(num_layers))
+        model_path = os.path.join('data', 'pretrained', 'resnet{}-caffe.pth'.format(num_layers))
         model.init_weights(model_path)
 
     return model

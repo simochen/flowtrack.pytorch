@@ -50,8 +50,9 @@ class MPII(data.Dataset):
 
         # self.mean = [110.3341, 113.2268, 112.3129]
         # ImageNet
-        self.mean = [0.485, 0.456, 0.406]
-        self.std = [0.229, 0.224, 0.225]
+        # self.mean = [0.485, 0.456, 0.406]
+        # self.std = [0.229, 0.224, 0.225]
+        self.mean = [103.939, 116.779, 123.68]
 
         # self.mean, self.std = self._compute_mean()
 
@@ -65,8 +66,8 @@ class MPII(data.Dataset):
             std = torch.zeros(3)
             for anno in self.anno:
                 img_path = os.path.join(self.img_folder, anno['img_name'])
-                img = cv2.imread(img_path) / 255.0
-                img = img[:,:,::-1]
+                img = cv2.imread(img_path)# / 255.0
+                # img = img[:,:,::-1]
                 mean += img.reshape(-1, img.shape[-1]).mean(0)
                 std += img.reshape(-1, img.shape[-1]).std(0)
             mean /= len(self.anno)
@@ -88,9 +89,10 @@ class MPII(data.Dataset):
 
         # load image
         img_path = os.path.join(self.img_folder, anno['img_name'])
-        img = cv2.imread(img_path) / 255.0
-        img = img[:,:,::-1]
-        img = normalize(img, np.array(self.mean), np.array(self.std)).astype(np.float32)
+        img = cv2.imread(img_path)# / 255.0
+        # img = img[:,:,::-1]
+        # img = normalize(img, np.array(self.mean), np.array(self.std)).astype(np.float32)
+        img = mean_sub(img, np.array(self.mean)).astype(np.float32)
         # img = torch.from_numpy(img.transpose((2,0,1))).float().div(255) # CxHxW
 
         # preprocess

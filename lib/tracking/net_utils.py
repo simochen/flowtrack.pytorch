@@ -8,8 +8,8 @@ from torch.autograd import Variable
 
 from detection.model.test import im_detect
 from detection.model.nms_wrapper import nms as detect_nms
-from pose.transforms import transfrom_image, transfrom_point
-from pose.evaluation import nms as pose_nms
+from pose.transforms import transfrom_image
+from pose.evaluation import final_preds
 
 def detect(net, im, person_id, thresh=0.3, prop_dets=None):
     """Detect human in an image.
@@ -33,7 +33,7 @@ def detect(net, im, person_id, thresh=0.3, prop_dets=None):
 
     return dets
 
-def pose_est(net, im, boxes, inp_res=(256,192), max_batch=32, thresh=0, window_size=3):
+def pose_est(net, im, boxes, inp_res=(256,192), max_batch=32, flip_test=False):
     """Parallel single person pose estimation.
     Arguments:
         net (nn.Module)
@@ -55,7 +55,7 @@ def pose_est(net, im, boxes, inp_res=(256,192), max_batch=32, thresh=0, window_s
             images = im_crop
         else:
             images = torch.cat((images, im_crop), dim=0)
-    
+
     num_batch = int(np.ceil(num_boxes / max_batch))
     for i in range(num_batch):
         end = max(num_boxes, max_batch*(i+1))
@@ -65,11 +65,8 @@ def pose_est(net, im, boxes, inp_res=(256,192), max_batch=32, thresh=0, window_s
             heatmaps = hm_batch
         else:
             heatmaps = torch.cat((heatmaps, hm_batch), dim=0)
-            # heatmaps = torch.cat((heatmaps.sigmoid(), hm_batch), dim=0)
-    keypoints = pose_nms(heatmaps, threshold, window_size)
-    
-    for i in range(num_boxes):
-        keypoints[i,:,:2] = transfrom_point(keypoints[i,:,:2], centers[i], scales[i], inp_res, 1)
+    coords, scores = final_preds(heatmaps, centers, scales, adjust_coords=True)
+    keypoints = np.concatenate((coords, scores), axis=2)
 
     return keypoints
 
@@ -93,5 +90,3 @@ def flow_est(net, prev_im, cur_im):
     flow = flow.squeeze(0).numpy()
 
     return flow
-
-
