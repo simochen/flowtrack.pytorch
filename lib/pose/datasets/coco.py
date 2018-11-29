@@ -12,7 +12,6 @@ import cv2
 
 import torch
 import torch.utils.data as data
-import torchvision.transforms as transforms
 
 from pycocotools.coco import COCO as COCOtool
 from pycocotools.cocoeval import COCOeval
@@ -157,7 +156,7 @@ class COCO(data.Dataset):
             ref_scale.mul_(sf*sf/self.opt.stride/self.opt.stride)
             meta = {
                 'image': int(anno['img_name']),
-                'joints': joints,
+                #'joints': joints,
                 'center': center,
                 'scale': scale,
                 'score': 1,
@@ -173,7 +172,7 @@ class COCO(data.Dataset):
         joint_hm = torch.zeros(self.num_joints, out_h, out_w)
         # joint_hm
         for j in range(self.num_joints):        # 17
-            if joints[j,2] != 2:
+            if joints[j,2] != 0:
                 joint_hm[j] = draw_gaussian(joint_hm[j], [joints[j,0], joints[j,1]], sigma)
         heatmaps = joint_hm
         if self.opt.with_bg:

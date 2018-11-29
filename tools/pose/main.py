@@ -19,10 +19,8 @@ from tqdm import tqdm
 from utils import *
 
 best_loss = 1
-batch_cnt = 0
-result = {'train':[], 'valid':[], 'APs':[]}
-num_joints = {'mpii':15, 'aic':14, 'coco':17}
-torch.manual_seed(1)    # 设置随机数种子为固定值
+num_joints = {'mpii':16, 'aic':14, 'coco':17}
+# torch.manual_seed(1)    # 设置随机数种子为固定值
 
 class AverageMeter(object):
 	"""Computes and stores the average and current value"""
@@ -49,6 +47,12 @@ def main(**kwargs):
 	opt.work_dir = os.path.join(opt.checkpoint_path, opt.dataset, opt.exp_id)
 	if not os.path.exists(opt.work_dir):
 		os.makedirs(opt.work_dir)
+
+	# cudnn related setting
+	cudnn.benchmark = True
+	cudnn.deterministic = False
+	cudnn.enabled = True
+
 	# dataset parse
 	num_classes = num_joints[opt.dataset]
 	if opt.with_bg:
@@ -132,9 +136,6 @@ def main(**kwargs):
 		else:
 			print("=> no checkpoint found at '{}'".format(opt.resume))
 
-	cudnn.benchmark = True
-	cudnn.deterministic = False
-	cudnn.enabled = True
 	print('    Total params: %.4fM' % (sum(p.numel() if p.requires_grad else 0 for p in model.parameters())/1000000.0))
 
 	# learning rate scheduler
@@ -153,47 +154,48 @@ def main(**kwargs):
 							  num_workers=opt.num_workers, pin_memory=True)
 
 	# Step 4 : train and validate
-	for epoch in range(opt.start_epoch, opt.max_epoch):
-		scheduler.step()
-		print('\nEpoch: %d/%d | LR: %.8f' %(epoch+1, opt.max_epoch, optimizer.param_groups[0]['lr']))
-		train_loss = train(train_loader, model, criterion, optimizer, opt, writer_dict)
-		valid_loss, APs = validate(valid_loader, valid_data, model, criterion, opt, writer_dict)
+	if opt.run_type == 'trainval':
+		for epoch in range(opt.start_epoch, opt.max_epoch):
+			scheduler.step()
+			print('\nEpoch: %d/%d | LR: %.8f' %(epoch+1, opt.max_epoch, optimizer.param_groups[0]['lr']))
+			train_loss = train(train_loader, model, criterion, optimizer, opt, writer_dict)
+			valid_loss, APs_dict, valid_mAP = validate(valid_loader, valid_data, model, criterion, opt, writer_dict)
 
-		valid_mAP = np.mean(APs)
-		if opt.dataset == 'mpii':
-			valid_mAP = np.mean(APs[:-1])
+			# scheduler.step(train_loss)
+			print('Train loss: %.6f | Test loss: %.6f | mAP: %.6f'%(train_loss, valid_loss, valid_mAP))
+			# save train and valid loss every epoch
+			loss['epoch'].append(epoch+1)
+			loss['train'].append(train_loss)
+			loss['valid'].append(valid_loss)
+			loss['APs'].append(APs_dict)
+			torch.save(loss, os.path.join(opt.work_dir, 'loss.t7'))
 
-		# scheduler.step(train_loss)
-		print('Train loss: %.6f | Test loss: %.6f | mAP: %.6f'%(train_loss, valid_loss, valid_mAP))
-		# save train and valid loss every epoch
-		loss['epoch'].append(epoch+1)
-		loss['train'].append(train_loss)
-		loss['valid'].append(valid_loss)
-		loss['APs'].append(APs)
-		torch.save(loss, os.path.join(opt.work_dir, 'loss.t7'))
+			# save checkpoint
+			if train_loss < best_loss:
+				best_loss = train_loss
+				checkpoint = {
+					'epoch': epoch + 1,
+					'model': opt.model,
+					'state_dict': model.state_dict(),
+					'best_loss': best_loss,
+					'optimizer' : optimizer.state_dict() }
+				filename = '_'.join([opt.model, opt.backbone, 'best'])+'.pth'
+				filename = os.path.join(opt.work_dir, filename)
+				torch.save(checkpoint, filename)
+			if (epoch+1) % opt.save_every == 0:
+				checkpoint = {
+					'epoch': epoch + 1,
+					'model': opt.model,
+					'state_dict': model.state_dict(),
+					'best_loss': best_loss,
+					'optimizer' : optimizer.state_dict() }
+				filename = '_'.join([opt.model, opt.backbone, str(epoch+1)])+'.pth'
+				filename = os.path.join(opt.work_dir, filename)
+				torch.save(checkpoint, filename)
+	elif opt.run_type == 'valid':
+		valid_loss, APs_dict, valid_mAP = validate(valid_loader, valid_data, model, criterion, opt, writer_dict)
+		print('Test loss: %.6f | mAP: %.6f'%(valid_loss, valid_mAP))
 
-		# save checkpoint
-		if train_loss < best_loss:
-			best_loss = train_loss
-			checkpoint = {
-				'epoch': epoch + 1,
-				'model': opt.model,
-				'state_dict': model.state_dict(),
-				'best_loss': best_loss,
-				'optimizer' : optimizer.state_dict() }
-			filename = '_'.join([opt.model, opt.backbone, 'best'])+'.pth'
-			filename = os.path.join(opt.work_dir, filename)
-			torch.save(checkpoint, filename)
-		if (epoch+1) % opt.save_every == 0:
-			checkpoint = {
-				'epoch': epoch + 1,
-				'model': opt.model,
-				'state_dict': model.state_dict(),
-				'best_loss': best_loss,
-				'optimizer' : optimizer.state_dict() }
-			filename = '_'.join([opt.model, opt.backbone, str(epoch+1)])+'.pth'
-			filename = os.path.join(opt.work_dir, filename)
-			torch.save(checkpoint, filename)
 
 def train(train_loader, model, criterion, optimizer, opt, writer_dict):
 	pbar = tqdm(total=len(train_loader))
@@ -203,7 +205,7 @@ def train(train_loader, model, criterion, optimizer, opt, writer_dict):
 	# switch to train mode
 	model.train()
 
-	for i, (data, heatmaps) in enumerate(train_loader):
+	for i, (data, heatmaps, target_weight) in enumerate(train_loader):
 		if opt.dataset == 'coco' and opt.with_mask:
 			mask = data[:,-1].numpy().transpose((1,2,0))
 			data = data[:,:-1]
@@ -215,12 +217,13 @@ def train(train_loader, model, criterion, optimizer, opt, writer_dict):
 
 		inputs = data.cuda()
 		target_hm = heatmaps.cuda(non_blocking=True)
+		target_weight = target_weight.cuda(non_blocking=True)
 		# zero gradient
 		optimizer.zero_grad()
 		# compute output
 		output = model(inputs)
 		# compute loss
-		loss = criterion(output, target_hm, mask)
+		loss = criterion(output, target_hm, target_weight, mask)
 
 		loss.backward()
 		optimizer.step()
@@ -245,7 +248,6 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 	global num_joints
 	losses = AverageMeter()
 	acc = AverageMeter()
-	APs = []
 	# set evaluation model
 	model.eval()
 	num_samples = len(valid_data)
@@ -254,12 +256,12 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 	metas = {'image':[], 'area':[], 'score':[]}
 	idx = 0
 	pbar = tqdm(total=len(valid_loader))
-	predictions = []
+	# predictions = []
 	annos = []
 	ref_scale = []
 	#nan_cnt = 0
 	with torch.no_grad():
-		for i, (data, heatmaps, meta) in enumerate(valid_loader):
+		for i, (data, heatmaps, target_weight, meta) in enumerate(valid_loader):
 			if opt.dataset == 'coco' and opt.with_mask:
 				mask = data[:,-1].numpy().transpose((1,2,0))
 				data = data[:,:-1]
@@ -270,11 +272,12 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 				mask = None
 			inputs = data.cuda()
 			target_hm = heatmaps.cuda(non_blocking=True)
+			target_weight = target_weight.cuda(non_blocking=True)
 
 			# compute output
 			output = model(inputs)
 			# compute loss
-			loss = criterion(output, target_hm, mask)
+			loss = criterion(output, target_hm, target_weight, mask)
 
 			batch_size = inputs.size(0)
 			losses.update(loss.item(), batch_size)
@@ -284,26 +287,30 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 			# compute actual ACC
 			c = meta['center'].numpy()
 			s = meta['scale'].numpy()
+
+			if opt.with_bg:
+				output = output[:,:-1]
+
 			preds, scores = final_preds(output, c, s, opt)
 
 			all_preds[idx:idx+batch_size] = np.concatenate((preds, scores), axis=2)
-			metas['area'].extend(meta['area'].numpy().tolist())
-			metas['score'].extend(meta['score'].numpy().tolist())
-			metas['image'].extend(meta['image'].numpy().tolist())
+			if opt.dataset == 'coco':
+				metas['area'].extend(meta['area'].numpy().tolist())
+				metas['score'].extend(meta['score'].numpy().tolist())
+				metas['image'].extend(meta['image'].numpy().tolist())
+			elif opt.dataset == 'mpii':
+				annos.append(meta['joints'].numpy())
+				ref_scale.append(meta['ref_scale'].numpy())
 
 			idx += batch_size
 
-			out_joint = output
-			if opt.with_bg:
-				out_joint = out_joint[:,:-1]
-			if opt.with_logits:
-				prediction = nms_heatmap(out_joint.sigmoid(), opt.nms_threshold, opt.nms_window_size)
-			else:
-				prediction = nms_heatmap(out_joint, opt.nms_threshold, opt.nms_window_size)
+			# out_joint = output
+			# if opt.with_logits:
+			# 	prediction = nms_heatmap(out_joint.sigmoid(), opt.nms_threshold, opt.nms_window_size)
+			# else:
+			# 	prediction = nms_heatmap(out_joint, opt.nms_threshold, opt.nms_window_size)
 			# [batch(num_person), num_joints, 3] (x, y, score)
-			predictions.append(prediction)
-			annos.append(meta['joints'].numpy())
-			ref_scale.append(meta['ref_scale'].numpy())
+			# predictions.append(prediction)
 
 			pbar.set_description("Testing")
 			pbar.set_postfix(Loss=losses.val, Loss_AVG=losses.avg, Acc=acc.val, Acc_AVG=acc.avg)
@@ -313,12 +320,20 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 		model.train()
 
 		if opt.dataset == 'mpii':
-			mAP = eval_AP(predictions, annos, ref_scale, 0.5)
-		elif opt.dataset == 'coco':
-			delta = 2 * np.array([.26, .25, .25, .35, .35, .79, .79, .72, .72, .62,.62, 1.07, 1.07, .87, .87, .89, .89])/10.0
-			mAP = eval_mAP(predictions, annos, ref_scale, delta)
-
+			# mAP = eval_AP(all_preds, annos, ref_scale, 0.5)
+			metas['joints'] = np.concatenate(annos, axis=0)
+			metas['ref_scale'] = np.concatenate(ref_scale, axis=0)
 			results, ap = valid_data.evaluate(all_preds, metas, opt.work_dir)
+		elif opt.dataset == 'coco':
+			# delta = 2 * np.array([.26, .25, .25, .35, .35, .79, .79, .72, .72, .62,.62, 1.07, 1.07, .87, .87, .89, .89])/10.0
+			# mAP = eval_mAP(predictions, annos, ref_scale, delta)
+			results, ap = valid_data.evaluate(all_preds, metas, opt.work_dir)
+
+		if isinstance(results, list):
+			for item in results:
+				_print_name_value(item, opt.model)
+		else:
+			_print_name_value(results, opt.model)
 
 		if writer_dict:
 			writer = writer_dict['writer']
@@ -326,14 +341,30 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 			writer.add_scalar('valid_loss', losses.avg, global_steps)
 			writer.add_scalar('valid_acc', acc.avg, global_steps)
 			if isinstance(results, list):
-				for i in results:
-					writer.add_scalars('valid', dict(i), global_steps)
+				for item in results:
+					writer.add_scalars('valid', dict(item), global_steps)
 			else:
 				writer.add_scalars('valid', dict(results), global_steps)
 			writer_dict['valid_global_steps'] = global_steps + 1
 
-	return losses.avg, mAP
+	return losses.avg, dict(results), ap
 
+# markdown format output
+def _print_name_value(name_value, full_arch_name):
+    names = name_value.keys()
+    values = name_value.values()
+    num_values = len(name_value)
+    print(
+        '| Arch ' +
+        ' '.join(['| {}'.format(name) for name in names]) +
+        ' |'
+    )
+    print('|-----' * (num_values+1) + '|')
+    print(
+        '| ' + full_arch_name + ' ' +
+        ' '.join(['| {:.3f}'.format(value) for value in values]) +
+         ' |'
+    )
 
 if __name__ == '__main__':
 	main()

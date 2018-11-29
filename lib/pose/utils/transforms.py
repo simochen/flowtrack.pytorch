@@ -50,9 +50,9 @@ def swaplr_joint(joints, width, dataset='coco'):
     #      L leg: 11(hip), 12(knee), 13(ankle)
     #      14 - pelvis-thorax, 1 - upper neck, 0 - head top
     if dataset ==  'mpii':
-        right = [2, 3, 4, 8, 9, 10]
-        left =  [5, 6, 7, 11, 12, 13]
-        njoints = 15
+        right = [0, 1, 2, 10, 11, 12]
+        left =  [5, 4, 3, 15, 14, 13]
+        njoints = 16
         nsym = 6
     # AIC  R arms: 0(shoulder), 1(elbow), 2(wrist)
     #      L arms: 3(shoulder), 4(elbow), 5(wrist)
@@ -157,8 +157,8 @@ def swaplr_image(img, dataset='coco'):
     #      L leg: 11(hip), 12(knee), 13(ankle)
     #      14 - pelvis-thorax, 1 - upper neck, 0 - head top
     if dataset ==  'mpii':
-        joint_right = [2, 3, 4, 8, 9, 10]
-        joint_left =  [5, 6, 7, 11, 12, 13]
+        joint_right = [0, 1, 2, 10, 11, 12]
+        joint_left =  [5, 4, 3, 15, 14, 13]
     # AIC  R arms: 0(shoulder), 1(elbow), 2(wrist)
     #      L arms: 3(shoulder), 4(elbow), 5(wrist)
     #      R leg: 6(hip), 7(knee), 8(ankle)

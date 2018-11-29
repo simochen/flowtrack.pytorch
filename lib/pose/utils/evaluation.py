@@ -70,7 +70,7 @@ def compute_oks(pred, anno, ref_scale, delta, ground_truth=True, threshold=0):
         anno_joints = anno[i]     # [num_joints, 3]
         scale = ref_scale[i]    # Scalar
         if ground_truth:
-            is_count = anno_joints[:, 2] != 2   # [cnt]
+            is_count = anno_joints[:, 2] > 0   # [cnt]
         else:
             is_count = np.logical_and(anno_joints[:,2] >= threshold, pred_joints[:,2] >= threshold)
         if is_count.sum() != 0:
@@ -107,7 +107,7 @@ def calc_dists(preds, target, normalize):
     dists = np.zeros((preds.shape[1], preds.shape[0]))
     for n in range(preds.shape[0]):
         for c in range(preds.shape[1]):
-            if target[n, c, 0] > 1 and target[n, c, 1] > 1:
+            if target[n, c, 0] >= 1 and target[n, c, 1] >= 1:
                 normed_preds = preds[n, c, :] / normalize[n]
                 normed_targets = target[n, c, :] / normalize[n]
                 dists[c, n] = np.linalg.norm(normed_preds - normed_targets)
@@ -158,36 +158,21 @@ def accuracy(output, target, hm_type='gaussian', thr=0.5):
         acc[0] = avg_acc
     return acc, avg_acc, cnt, pred
 
-# anno - joints [Ngt x num_joints x 3]  (x, y, is_visible)
-# ref_scale [Ngt] - 0.6 * norm(head)
-# pred - joints [Npred x num_joints x 3]    (x, y, score)
+# anno - joints [(N x) num_joints x 3]  (x, y, is_visible)
+# pred - joints [N x num_joints x 3]    (x, y, score)
+# ref_scale - [N] - 0.6 * norm(head)
 def compute_pck(pred, anno, ref_scale, threshold):
-    batch_size = pred.shape[0]  # Ngt
-    num_joints = pred.shape[1]
-    pck = np.zeros((batch_size))
-    if pred_count == 0:
-        return np.zeros((anno_count, pred_count)), np.zeros((anno_count, pred_count, num_joints))
-    dist = (2 * threshold) * np.ones((anno_count, pred_count, num_joints))
-    GT_count = np.zeros(anno_count)         # [Ngt]
-    #Compute dist matrix (size gtN*pN*num_joints).
-    # for every human keypoint annotation
-    for i in range(anno_count):
-        anno_joints = anno[i]     # [num_joints, 3]
-        is_count = anno_joints[:, 2] < 2   # [cnt]
-        GT_count[i] = is_count.sum()
-        scale = ref_scale[i]    # Scalar
-        if is_count.sum() > 0:
-            # # for every predicted human
-            # for j in range(pred_count):
-            #     pred_joints = pred[j]
-            #     dist[i,j,is_count] = anno_joints[is_count,:2].sub(pred_joints[is_count,:2]).pow_(2).sum(1).sqrt_().div_(ref_scale)
-            vec = anno_joints[is_count,:2].reshape(1,-1,2) - pred[:,is_count,:2]    # [Np, cnt, 2]
-            dist[i,:,is_count] = (np.sqrt(pow(vec,2).sum(2)) / scale).T     # [Np, cnt]
+    pred_joints = pred[:,:,:2] + 1
+    anno_joints = anno[:,:,:2]
+    is_count = anno[:,:,2] > 0
 
-    # Compute PCKh matrix (size Ngt*Np)
-    match = dist <= threshold  # [Ngt, Np, num_joints]
-    pck = match.sum(2).astype(np.float32) / GT_count.reshape(-1,1)
-    return pck, match   # torch.FloatTensor, torch.ByteTensor
+    dists = np.linalg.norm(pred_joints - anno_joints, axis=2)
+    dists = dists / ref_scale
+
+    # Compute PCKh (size N)
+    match = (dists <= threshold) * is_count  # [N, num_joints]
+    pck = match.sum(0).astype(np.float32) / is_count.sum(0)
+    return pck   # [num_joints]
 
 # precision [N]
 # recall [N]
@@ -227,55 +212,12 @@ def eval_mAP(pred, anno, ref_scale, delta, dataset='coco'):
 
 # anno [num_img]
 # ref_scale [num_img]
-# pred - joints ([num_img] num_people x num_joints x 3)
+# pred - joints ([num_img] batch(num_people) x num_joints x 3)
 def eval_AP(pred, anno, ref_scale, threshold):
     """Evaluate predicted_file and return AP."""
-    num_joints = pred[0].shape[-2]
-    GT_all = np.zeros((num_joints))
-    score_all = np.zeros((0, num_joints))
-    match_all = np.zeros((0, num_joints))
-    # if the image in the predictions, then compute pck
-    for i in range(len(pred)):
-        # GT_count: number of joints in current image
-        GT_count = (anno[i][:,:,2] < 2).sum(0) # [num_joints]
-        # GT_all: number of joints in all images
-        GT_all += GT_count
-        pck, match = compute_pck(pred=pred[i], anno=anno[i], ref_scale=ref_scale[i],
-                                 threshold=threshold)
-        if pck.size == 0:
-            continue
-        max_ = pck.max(0, keepdims=True)
-        pck_ = (pck >= max_) * pck
-        max_val = pck_.max(1)
-        idx_pred = pck_.argmax(1)
-        idx_pred = idx_pred[max_val != 0]  # torch.LongTensor
-        idx_gt = np.nonzero(max_val)[0]     # torch.LongTensor
-        if idx_pred.shape[0] != idx_gt.shape[0]:
-            print("size does not match!!!")
-        s = pred[i][idx_pred][:,:,2]    # [matched, num_joints]
-        m = np.zeros((idx_pred.shape[0], num_joints)) # [matched, num_joints]
-        for k in range(idx_pred.shape[0]):
-            m[k] = match[idx_gt[k],idx_pred[k]]
+    # pred = np.concatenate(pred, axis=0)
+    anno = np.concatenate(anno, axis=0)
+    ref_scale = np.concatenate(ref_scale, axis=0)
+    pck = compute_pck(pred, anno, ref_scale, threshold)
 
-        score_all = np.concatenate((score_all, s), axis=0)
-        match_all = np.concatenate((match_all, m), axis=0)    # {0,1}
-
-    sort_score = np.sort(score_all, axis=0)[::-1]
-    sort_idx = np.argsort(score_all, axis=0)[::-1]
-    sort_match = np.zeros(match_all.shape)
-    for i in range(num_joints):
-        sort_match[:,i] = match_all[:,i][sort_idx[:,i]]
-
-    sum_match = np.cumsum(sort_match, axis=0)       # [N, num_joints]
-    pred_num = np.arange(1,sort_match.shape[0]+1)   # [N]
-    precision = sum_match.astype(np.float32) / pred_num.reshape(-1,1)
-    recall = sum_match / GT_all.reshape(1,-1)
-
-    precision = np.concatenate((np.zeros((1,num_joints)),precision,np.zeros((1,num_joints))), axis=0)
-    recall = np.concatenate((np.zeros((1,num_joints)),recall,np.ones((1,num_joints))), axis=0)
-    precision[:-1] = np.fmax(precision[:-1], precision[1:])
-    AP = ((recall[1:] - recall[:-1]) * precision[1:]).sum(0)
-
-    # AP = torch.cat((ap, ap.mean()))
-
-    return AP.tolist()   # list
+    return pck.tolist()   # list

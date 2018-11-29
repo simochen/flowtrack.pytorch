@@ -1,4 +1,8 @@
 # -*- coding:utf-8 -*-
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import math
 import torch
 import torch.nn as nn
@@ -353,7 +357,7 @@ class PyramidBlock(nn.Module):
 class PrePyramidBlock(nn.Module):
     expansion = 4
     bias = False
-    
+
     def __init__(self, inplanes, planes, input_res, cardinality, stride=1, ptype='preact'):
         super(PrePyramidBlock, self).__init__()
         if ptype != 'no_preact':
