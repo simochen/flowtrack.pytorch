@@ -9,8 +9,6 @@ Pytorch implementation of [FlowTrack](https://arxiv.org/pdf/1804.06208.pdf).
 
 - [x] Human detection
 - [x] Single person pose estimation
-	- [x] Building
-	- [x] Training
 - [x] Optical flow estimation
 - [x] Box propagation
 - [ ] Pose tracking
@@ -65,3 +63,10 @@ Download pretrained [flownet](https://drive.google.com/file/d/17d0x6q3FZZCfHMz7v
 python ./tools/flownet/demo.py --model </path/to/model>
 ```
 
+
+
+### Update
+
+- \[2018.12.03\] Add Models
+  - Deconv DenseNet
+  - Stacked Hourglass Network

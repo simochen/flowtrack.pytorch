@@ -43,9 +43,9 @@ class COCO(data.Dataset):
         #       face: 0(nose), 1(l-eye), 2(r-eye), 3(l-ear), 4(r-ear)
 
         # self.mean = [103.9438, 113.9438, 119.8627]    # COCO
-        # ImageNet
-        # self.mean = [0.485, 0.456, 0.406]
-        # self.std = [0.229, 0.224, 0.225]
+        # ImageNet BGR order
+        # self.mean = [0.406, 0.456, 0.485]
+        self.std = [0.225, 0.224, 0.229]
         self.mean = [103.939, 116.779, 123.68]
 
         # self.mean, self.std = self._compute_mean()
@@ -85,10 +85,8 @@ class COCO(data.Dataset):
 
         # load image
         img_path = os.path.join(self.img_folder, '{}.jpg'.format(anno['img_name']))
-        img = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)# / 255.0
+        img = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
         # img = img[:,:,::-1]
-        # img = normalize(img, np.array(self.mean), np.array(self.std)).astype(np.float32)
-        img = mean_sub(img, np.array(self.mean)).astype(np.float32)
         # img = torch.from_numpy(img.transpose((2,0,1))).float().div(255) # CxHxW
 
         # load mask
@@ -96,10 +94,12 @@ class COCO(data.Dataset):
             mask_path = os.path.join(self.mask_folder, 'mask_miss_{}.png'.format(anno['img_name']))
             mask = cv2.imread(mask_path, 0)[:,:,np.newaxis]
             img = np.concatenate((img, mask), axis=2)
+            self.mean.append(0)
+            self.std.append(1)
 
         # preprocess
         # all joints in the image
-        joints = torch.Tensor(anno['joint_self'])#.view(self.num_joints,3)
+        joints = np.array(anno['joint_self'])#.view(self.num_joints,3)
         # bbox = torch.Tensor(anno['bbox']).view(1,4) # [x,y,w,h]
         ref_scale = torch.Tensor([anno['segment_area']])
 
@@ -136,25 +136,7 @@ class COCO(data.Dataset):
             if self.opt.debug:
                 print("Scale:", factor)
                 print("Rotate:", rot)
-            img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
-            # joints transform
-            jo = joints[:,0:2].numpy()
-            jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
-            joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
-            # # flip
-            # if random.random() < self.opt.flip_prob:
-            #     img = fliplr_tensor(img)
-            #     joints = swaplr_joint(joints, out_w, self.opt.dataset)
-            #     print("Flip")
         else:
-            img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
-            # joints transform
-            jo = joints[:,0:2].numpy()
-            jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
-            joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
-
-            sf = self.opt.input_res[0]/pheight
-            ref_scale.mul_(sf*sf/self.opt.stride/self.opt.stride)
             meta = {
                 'image': int(anno['img_name']),
                 #'joints': joints,
@@ -164,6 +146,15 @@ class COCO(data.Dataset):
                 'area': pheight*pwidth,
                 'ref_scale':ref_scale
             }
+
+        img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
+
+        img = normalize(img.float().div(255.0), self.mean, self.std)
+        # img = mean_sub(img, np.array(self.mean))
+
+        # joints transform
+        joints[:,0:2] = transform_point(joints[:,0:2], center, scale, (out_h, out_w), 0, factor, rot)
+        joints = torch.from_numpy(joints)
 
         # integer coords
         joints = joints.round().int()

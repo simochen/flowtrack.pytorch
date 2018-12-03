@@ -34,6 +34,7 @@ class DefaultConfig(object):
     # with_logits = False
     # with_mask = False
     # with_bg = False
+    # target_type = 'gaussian'
     #
     # # ====================== Training Options ======================
     # debug = False
@@ -90,6 +91,7 @@ class DefaultConfig(object):
     with_logits = False
     with_mask = False
     with_bg = False
+    target_type = 'gaussian'
 
     # ====================== Training Options ======================
     debug = False
@@ -105,9 +107,9 @@ class DefaultConfig(object):
 
     # ====================== checkpoint Options ======================
     checkpoint_path = './checkpoints'
-    exp_id = 'exp_02'
-    resume = None #'pose_net_resnet50_best.pth'   # resume from a checkpoint
-    save_every = 10  # save every N epoch
+    exp_id = 'exp_01'
+    resume = None#'deconv_resnet50_best.pth'   # resume from a checkpoint
+    save_every = 20  # save every N epoch
     run_type = 'trainval'
 
     # ====================== Evaluation Options ======================

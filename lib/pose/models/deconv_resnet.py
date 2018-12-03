@@ -5,10 +5,6 @@ from __future__ import print_function
 import os
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
-import math
-import torch.utils.model_zoo as model_zoo
 
 from .blocks import *
 
@@ -17,14 +13,6 @@ BN_MOMENTUM = 0.1
 # __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
 #         'resnet152']
 
-
-model_urls = {
-    'resnet18': 'https://s3.amazonaws.com/pytorch/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://s3.amazonaws.com/pytorch/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://s3.amazonaws.com/pytorch/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://s3.amazonaws.com/pytorch/models/resnet101-5d3b4d8f.pth',
-    'resnet152': 'https://s3.amazonaws.com/pytorch/models/resnet152-b121ed2d.pth',
-}
 
 class PoseResNet(nn.Module):
     def __init__(self, block, layers, num_classes):
@@ -115,13 +103,14 @@ resnet_dict = {18: (BasicBlock, [2, 2, 2, 2]),
                101: (Bottleneck, [3, 4, 23, 3]),
                152: (Bottleneck, [3, 8, 36, 3])}
 
-def deconv(num_layers=50, num_classes=17, pretrained=True):
+def deconv_resnet(layer_msg, num_classes, pretrained):
+    num_layers = int(layer_msg)
     block, layers = resnet_dict[num_layers]
 
     model = PoseResNet(block, layers, num_classes)
 
     if pretrained:
-        model_path = os.path.join('data', 'pretrained', 'resnet{}-caffe.pth'.format(num_layers))
+        model_path = os.path.join('data', 'pretrained', 'resnet{}.pth'.format(num_layers))
         model.init_weights(model_path)
 
     return model

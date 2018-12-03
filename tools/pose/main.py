@@ -58,22 +58,26 @@ def main(**kwargs):
 	if opt.with_bg:
 		num_classes += 1
 
-	if opt.backbone == 'resnet50':
-		num_layers = 50
-	elif opt.backbone == 'resnet101':
-		num_layers = 101
-	elif opt.backbone == 'resnet152':
-		num_layers = 152
-
 	# Step 1 : create model
 	print("==> creating model '{}', backbone = {}".format(
 		opt.model, opt.backbone) )
-	model = getattr(models, opt.model)(num_layers = num_layers,
-									   num_classes = num_classes,
-									   pretrained = True)
+	if opt.model == 'deconv':
+		for net_name in ['resnet', 'densenet', 'squeezenet']:
+			if net_name in opt.backbone:
+				model_name = '{}_{}'.format(opt.model, net_name)
+				model_msg = opt.backbone[len(net_name):]
+				break
+		model = getattr(models, model_name)(model_msg,
+										    num_classes = num_classes,
+										    pretrained = True)
+		model_name = '{}_{}'.format(opt.model, opt.backbone)
+	elif opt.model == 'hg':
+		model = getattr(models, opt.model)(num_classes = num_classes,
+										   num_stacks = 8)
+		model_name = opt.model
 
 	# tensorboard writer
-	log_dir = os.path.join(opt.work_dir, 'log')
+	log_dir = os.path.join(opt.work_dir, 'log', model_name)
 	if os.path.exists(log_dir):
 		shutil.rmtree(log_dir)
 	writer_dict = {
@@ -115,7 +119,6 @@ def main(**kwargs):
 	loss = {'epoch':[], 'train':[], 'valid':[], 'APs':[]}
 
 	# (Optional) resume from checkpoint
-	prefix = '_'.join([opt.dataset, opt.model, opt.backbone])
 	if opt.resume:
 		model_path = os.path.join(opt.work_dir, opt.resume)
 		loss_path = os.path.join(opt.work_dir, 'loss.t7')
@@ -179,7 +182,7 @@ def main(**kwargs):
 					'state_dict': model.state_dict(),
 					'best_loss': best_loss,
 					'optimizer' : optimizer.state_dict() }
-				filename = '_'.join([opt.model, opt.backbone, 'best'])+'.pth'
+				filename = '_'.join([model_name, 'best'])+'.pth'
 				filename = os.path.join(opt.work_dir, filename)
 				torch.save(checkpoint, filename)
 			# save every i epoch
@@ -190,7 +193,7 @@ def main(**kwargs):
 					'state_dict': model.state_dict(),
 					'best_loss': best_loss,
 					'optimizer' : optimizer.state_dict() }
-				filename = '_'.join([opt.model, opt.backbone, str(epoch+1)])+'.pth'
+				filename = '_'.join([model_name, str(epoch+1)])+'.pth'
 				filename = os.path.join(opt.work_dir, filename)
 				torch.save(checkpoint, filename)
 	elif opt.run_type == 'valid':
@@ -223,6 +226,8 @@ def train(train_loader, model, criterion, optimizer, opt, writer_dict):
 		optimizer.zero_grad()
 		# compute output
 		output = model(inputs)
+		if opt.model == 'hg':
+			output = output[-1]
 		# compute loss
 		loss = criterion(output, target_hm, target_weight, mask)
 
@@ -277,12 +282,18 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 
 			# compute output
 			output = model(inputs)
+			if opt.model == 'hg':
+				output = output[-1]
 
 			if opt.flip_test:
 				# inputs: [B, C, H, W]
-				input_flipped = inputs[:, :, :, ::-1].clone()
+				input_flipped = np.flip(inputs.cpu().numpy(), 3).copy()
+				input_flipped = torch.from_numpy(input_flipped).cuda()
 				output_flipped = model(input_flipped)
-				output_flipped = swaplr_image(output_flipped.cpu(), opt.datset).cuda()
+				if opt.model == 'hg':
+					output_flipped = output_flipped[-1]
+				output_flipped = swaplr_image(output_flipped.cpu().numpy(), opt.dataset)
+				output_flipped = torch.from_numpy(output_flipped.copy()).cuda()
 
 				output = (output + output_flipped) * 0.5
 

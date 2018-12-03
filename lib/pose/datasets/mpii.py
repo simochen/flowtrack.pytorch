@@ -49,10 +49,10 @@ class MPII(data.Dataset):
                 self.anno.append(anno)
 
         # self.mean = [110.3341, 113.2268, 112.3129]
-        # ImageNet
-        # self.mean = [0.485, 0.456, 0.406]
-        # self.std = [0.229, 0.224, 0.225]
-        self.mean = [103.939, 116.779, 123.68]
+        # ImageNet BGR order
+        self.mean = [0.406, 0.456, 0.485]
+        self.std = [0.225, 0.224, 0.229]
+        # self.mean = [103.939, 116.779, 123.68]
 
         # self.mean, self.std = self._compute_mean()
 
@@ -89,21 +89,19 @@ class MPII(data.Dataset):
 
         # load image
         img_path = os.path.join(self.img_folder, anno['img_name'])
-        img = cv2.imread(img_path)# / 255.0
+        img = cv2.imread(img_path)#.astype(np.float32)
         # img = img[:,:,::-1]
-        # img = normalize(img, np.array(self.mean), np.array(self.std)).astype(np.float32)
-        img = mean_sub(img, np.array(self.mean)).astype(np.float32)
         # img = torch.from_numpy(img.transpose((2,0,1))).float().div(255) # CxHxW
 
         # preprocess
         # all joints in the image
-        joints = torch.Tensor(anno['joint_self'])#.view(self.num_joints,3)
+        joints = np.array(anno['joint_self'])#.view(self.num_joints,3)
         # headrect = torch.Tensor(anno['headrect_self'])
         # ref_scale = compute_head_norm(headrect)
         ref_scale = torch.Tensor([anno['headsize']])
 
-        keypoints = joints.clone()
-        joints[:,0:2].sub_(1) # Convert pts to zero based
+        keypoints = joints.copy()
+        joints[:,:2] -= 1 # Convert pts to zero based
 
         h = img.shape[0]
         w = img.shape[1]
@@ -137,26 +135,7 @@ class MPII(data.Dataset):
             if self.opt.debug:
                 print("Scale:", factor)
                 print("Rotate:", rot)
-            img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
-            # joints transform
-            jo = joints[:,0:2].numpy()
-            jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
-            joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
-            # # flip
-            # if random.random() < self.opt.flip_prob:
-            #     img = fliplr_tensor(img)
-            #     joints = swaplr_joint(joints, out_w, self.opt.dataset)
-            #     print("Flip")
-
         else:
-            img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
-            # joints transform
-            jo = joints[:,0:2].numpy()
-            jo = transform_point(jo, center, scale, self.opt.input_res, 0, factor, rot)
-            joints[:,0:2] = torch.from_numpy(jo/self.opt.stride)
-
-            # sf = float(self.opt.input_res[0])/scale
-            # ref_scale.mul_(sf*sf/self.opt.stride/self.opt.stride)
             meta = {
                 'image': anno['img_name'],
                 'joints': keypoints,
@@ -164,6 +143,15 @@ class MPII(data.Dataset):
                 'scale': scale,
                 'ref_scale':ref_scale
             }
+
+        img = transform_image(img, center, scale, self.opt.input_res, factor, rot)
+
+        img = normalize(img.float().div(255.0), self.mean, self.std)
+        # img = mean_sub(img, self.mean)
+
+        # joints transform
+        joints[:,0:2] = transform_point(joints[:,0:2], center, scale, (out_h, out_w), 0, factor, rot)
+        joints = torch.from_numpy(joints)
 
         # generate heatmaps
         sigma = self.opt.sigma

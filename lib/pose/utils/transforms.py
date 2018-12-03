@@ -25,10 +25,32 @@ def color_normalize(x, mean, std):
     return x.sub(mean.view(3, 1, 1).expand_as(x)).div(std.view(3, 1, 1).expand_as(x))
 
 def mean_sub(x, mean):
-    return x - mean.reshape((1,1,-1))
+    if isinstance(mean, list):
+        if isinstance(x, np.ndarray):
+            mean = np.array(mean)
+        else:
+            mean = torch.Tensor(mean)
+    if isinstance(x, np.ndarray):
+        y = x - mean.reshape((1,1,-1))
+        y = y.astype(np.float32)
+    else:
+        y = x - mean.view((-1,1,1))
+    return y
 
 def normalize(x, mean, std):
-    return (x - mean.reshape((1,1,-1))) / std.reshape((1,1,-1))
+    if isinstance(mean, list):
+        if isinstance(x, np.ndarray):
+            mean = np.array(mean)
+            std = np.array(std)
+        else:
+            mean = torch.Tensor(mean)
+            std = torch.Tensor(std)
+    if isinstance(x, np.ndarray):
+        y = (x - mean.reshape((1,1,-1))) / std.reshape((1,1,-1))
+        y = y.astype(np.float32)
+    else:
+        y = (x - mean.view((-1,1,1))) / std.view((-1,1,1))
+    return y
 
 def get_img(img, mean, std):
     return img.numpy().transpose((1,2,0)) * std.reshape((1,1,-1)) + mean.reshape((1,1,-1))
@@ -84,14 +106,14 @@ def swaplr_joint(joints, width, dataset='coco'):
     nsym = len(right)
 
     # Flip x coords
-    j = joints.view(-1, 3)
-    j[:, 0].neg_().add_(width-1)
+    j = joints.reshape((-1, 3))
+    j[:, 0] = width - 1 - j[:, 0]
     # Swap left-right joints
-    if joints.dim() > 2 and joints.size(0) > 1:
-        n = joints.size(0)
+    if joints.ndim > 2 and joints.shape[0] > 1:
+        n = joints.shape[0]
         right = np.tile(right,n) + (np.arange(n)*njoints).repeat(nsym)
         left = np.tile(left,n) + (np.arange(n)*njoints).repeat(nsym)
-    tmp = j[right, :].clone()
+    tmp = j[right, :].copy()
     j[right, :] = j[left, :]
     j[left, :] = tmp
 
@@ -120,14 +142,14 @@ def swap(img, pairs):
     swap images according to channel index
     Input: img - Tensor[(batch_size,) num_joints, height, width]
     """
-    if img.dim() == 3:
+    if img.ndim == 3:
         img = img[:, :, ::-1]
-        tmp = img[pairs[0], :].clone()
+        tmp = img[pairs[0], :].copy()
         img[pairs[0], :] = img[pairs[1], :]
         img[pairs[1], :] = tmp
-    elif img.dim() == 4:
+    elif img.ndim == 4:
         img = img[:, :, :, ::-1]
-        tmp = img[:, pairs[0]].clone()
+        tmp = img[:, pairs[0]].copy()
         img[:, pairs[0]] = img[:, pairs[1]]
         img[:, pairs[1]] = tmp
     return img
@@ -139,8 +161,10 @@ def swaplr_image(img, dataset='coco'):
     """
     joint_right, joint_left = get_pairs(dataset)
 
-    pairs = np.array([joint_right, joint_left]).astype(int)
-    img = swap(img, pairs)
+    # pairs = np.array([joint_right, joint_left]).astype(int)
+    # img = swap(img, pairs)
+    img = swap(img, [joint_right, joint_left])
+
     return img
 
 """
