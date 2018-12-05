@@ -1,3 +1,4 @@
-from .deconv_resnet import deconv_resnet
-from .deconv_densenet import deconv_densenet
+from .pose_deconv import deconv
+from .pose_fpn import fpn
+from .pose_net import pose
 from .hourglass import hg

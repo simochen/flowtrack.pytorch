@@ -85,13 +85,15 @@ class DefaultConfig(object):
     sigma = 2
 
     # ======================= Model Options =======================
-    model = 'deconv'
-    backbone = 'resnet50'
+    model = 'fpn'
+    backbone = 'densenet121'
     stride = 4
     with_logits = False
     with_mask = False
     with_bg = False
     target_type = 'gaussian'
+    pretrained = True
+    tensorboard = False
 
     # ====================== Training Options ======================
     debug = False
@@ -107,7 +109,7 @@ class DefaultConfig(object):
 
     # ====================== checkpoint Options ======================
     checkpoint_path = './checkpoints'
-    exp_id = 'exp_01'
+    exp_id = 'pretrained_01'
     resume = None#'deconv_resnet50_best.pth'   # resume from a checkpoint
     save_every = 20  # save every N epoch
     run_type = 'trainval'

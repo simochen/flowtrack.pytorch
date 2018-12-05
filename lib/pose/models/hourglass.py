@@ -73,34 +73,6 @@ class Hourglass(nn.Module):
             hg.append(nn.ModuleList(res))
         return nn.ModuleList(hg)
 
-    def _add(self, x, y):
-        '''Add two feature maps.
-
-        Args:
-          x: (Variable) original feature map.
-          y: (Variable) upsampled feature map.
-
-        Returns:
-          (Variable) added feature map.
-
-        '''
-        _,_,H,W = x.size()
-        return y[:,:,:H,:W] + x
-
-    def _concatenate(self, x, y):
-        '''Concatenate two feature maps.
-
-        Args:
-          x: (Variable) original feature map.
-          y: (Variable) upsampled feature map.
-
-        Returns:
-          (Variable) concatenated feature map.
-
-        '''
-        _,_,H,W = x.size()
-        return torch.cat((y[:,:,:H,:W], x), dim=1)
-
     def _upsample_add(self, x, y):
         '''Upsample and add two feature maps.
         Args:
@@ -122,6 +94,19 @@ class Hourglass(nn.Module):
         return F.upsample(y, size=(H,W), mode='bilinear', align_corners=True) + x
 	#return nn.Upsample(size=(H,W), mode='bilinear')(y) + x
 
+    def _upsample_concat(self, x, y):
+        '''Upsample and concatenate two feature maps.
+        Args:
+          x: (Variable) original feature map.
+          y: (Variable) feature map to be upsampled.
+        Returns:
+          (Variable) concatenated feature map.
+        '''
+        _,_,H,W = x.size()
+        out = F.upsample(y, size=(H,W), mode='bilinear', align_corners=True)
+        out = torch.cat((out, x), dim=1)
+        return out
+
     def _hourglass_forward(self, n, x):
         up1 = self.hg[n-1][0](x)
         low1 = self.maxpool(x)
@@ -132,9 +117,6 @@ class Hourglass(nn.Module):
         else:
             low2 = self.hg[n-1][3](low1)
         low3 = self.hg[n-1][2](low2)
-        # up2 = self.upsample(low3)
-        # out = self._add(up1, up2)
-        # out = self._concatenate(up1, up2)
         out = self._upsample_add(up1, low3)
         return out
 

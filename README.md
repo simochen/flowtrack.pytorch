@@ -15,6 +15,17 @@ Pytorch implementation of [FlowTrack](https://arxiv.org/pdf/1804.06208.pdf).
 
 
 
+### Requirements
+
+```
+pytorch >= 0.4.0
+torchvision
+pycocotools
+tensorboardX
+```
+
+
+
 
 ### Installation
 
@@ -23,7 +34,15 @@ cd lib
 ./make.sh
 ```
 
+Disable cudnn for batch_norm:
 
+```
+# PYTORCH=/path/to/pytorch
+# for pytorch v0.4.0
+sed -i "1194s/torch\.backends\.cudnn\.enabled/False/g" ${PYTORCH}/torch/nn/functional.py
+# for pytorch v0.4.1
+sed -i "1254s/torch\.backends\.cudnn\.enabled/False/g" ${PYTORCH}/torch/nn/functional.py
+```
 
 ### Training
 
@@ -67,6 +86,9 @@ python ./tools/flownet/demo.py --model </path/to/model>
 
 ### Update
 
-- \[2018.12.03\] Add Models
+**2018.12.05:**
+
+-  Add Pose Estimation Models
   - Deconv DenseNet
   - Stacked Hourglass Network
+  - FPN

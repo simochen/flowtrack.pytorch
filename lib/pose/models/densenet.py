@@ -6,8 +6,6 @@ import torch.nn.functional as F
 # import torch.utils.model_zoo as model_zoo
 from collections import OrderedDict
 
-BN_MOMENTUM = 0.1
-
 # __all__ = ['DenseNet', 'densenet121', 'densenet169', 'densenet201', 'densenet161']
 #
 #
@@ -56,7 +54,7 @@ class _Transition(nn.Sequential):
         self.add_module('pool', nn.AvgPool2d(kernel_size=2, stride=2))
 
 
-class PoseDenseNet(nn.Module):
+class DenseNet(nn.Module):
     r"""Densenet-BC model class, based on
     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
 
@@ -70,57 +68,56 @@ class PoseDenseNet(nn.Module):
         num_classes (int) - number of classification classes
     """
 
-    def __init__(self, num_init_features=64, growth_rate=32, block_config=(6, 12, 24, 16),
-                 bn_size=4, drop_rate=0, num_classes=1000):
+    def __init__(self, num_init_features, growth_rate, block_config,
+                 bn_size=4, drop_rate=0):
 
-        super(PoseDenseNet, self).__init__()
+        super(DenseNet, self).__init__()
 
         # First convolution
-        self.features = nn.Sequential(OrderedDict([
-            ('conv0', nn.Conv2d(3, num_init_features, kernel_size=7, stride=2, padding=3, bias=False)),
-            ('norm0', nn.BatchNorm2d(num_init_features)),
-            ('relu0', nn.ReLU(inplace=True)),
-            ('pool0', nn.MaxPool2d(kernel_size=3, stride=2, padding=1)),
-        ]))
+        self.conv0 = nn.Conv2d(3, num_init_features, kernel_size=7, stride=2, padding=3, bias=False)
+        self.norm0 = nn.BatchNorm2d(num_init_features)
+        self.relu0 = nn.ReLU(inplace=True)
+        self.pool0 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-        # Each denseblock
-        planes = num_init_features
+        self.inplanes = num_init_features
+        self.planes = []
         for i, num_layers in enumerate(block_config):
-            block = _DenseBlock(num_layers=num_layers, num_input_features=planes,
+            block = _DenseBlock(num_layers=num_layers, num_input_features=self.inplanes,
                                 growth_rate=growth_rate, bn_size=bn_size, drop_rate=drop_rate)
-            self.features.add_module('denseblock%d' % (i + 1), block)
-            planes = planes + num_layers * growth_rate
+            setattr(self, 'denseblock%d' % (i + 1), block)
+            self.inplanes = self.inplanes + num_layers * growth_rate
+            self.planes.append(self.inplanes)
             if i != len(block_config) - 1:
-                trans = _Transition(num_input_features=planes, num_output_features=planes // 2)
-                self.features.add_module('transition%d' % (i + 1), trans)
-                planes = planes // 2
+                trans = _Transition(num_input_features=self.inplanes, num_output_features=self.inplanes // 2)
+                setattr(self, 'transition%d' % (i + 1), trans)
+                self.inplanes = self.inplanes // 2
 
         # Final batch norm
-        self.features.add_module('norm5', nn.BatchNorm2d(planes))
+        self.norm5 = nn.BatchNorm2d(self.inplanes)
 
-        # deconv layers
-        self.deconv_bias = False
-        num_feats = 256
 
-        self.deconv = nn.Sequential(
-                    nn.ConvTranspose2d(planes, num_feats, kernel_size=4, stride=2, padding=1, bias = self.deconv_bias),
-                    nn.BatchNorm2d(num_feats, momentum=BN_MOMENTUM),
-                    nn.ReLU(inplace=True),
-                    nn.ConvTranspose2d(num_feats, num_feats, kernel_size=4, stride=2, padding=1, bias=self.deconv_bias),
-                    nn.BatchNorm2d(num_feats, momentum=BN_MOMENTUM),
-                    nn.ReLU(inplace=True),
-                    nn.ConvTranspose2d(num_feats, num_feats, kernel_size=4, stride=2, padding=1, bias=self.deconv_bias),
-                    nn.BatchNorm2d(num_feats, momentum=BN_MOMENTUM),
-                    nn.ReLU(inplace=True) )
-
-        self.heatmap = nn.Conv2d(num_feats, num_classes, kernel_size=1)
-
-    def forward(self, x):
-        features = self.features(x)
-        out = F.relu(features, inplace=True)
-        out = self.deconv(out)
-        out = self.heatmap(out)
-        return out
+        # # First convolution
+        # self.features = nn.Sequential(OrderedDict([
+        #     ('conv0', nn.Conv2d(3, num_init_features, kernel_size=7, stride=2, padding=3, bias=False)),
+        #     ('norm0', nn.BatchNorm2d(num_init_features)),
+        #     ('relu0', nn.ReLU(inplace=True)),
+        #     ('pool0', nn.MaxPool2d(kernel_size=3, stride=2, padding=1)),
+        # ]))
+        #
+        # # Each denseblock
+        # self.inplanes = num_init_features
+        # for i, num_layers in enumerate(block_config):
+        #     block = _DenseBlock(num_layers=num_layers, num_input_features=self.inplanes,
+        #                         growth_rate=growth_rate, bn_size=bn_size, drop_rate=drop_rate)
+        #     self.features.add_module('denseblock%d' % (i + 1), block)
+        #     self.inplanes = self.inplanes + num_layers * growth_rate
+        #     if i != len(block_config) - 1:
+        #         trans = _Transition(num_input_features=self.inplanes, num_output_features=self.inplanes // 2)
+        #         self.features.add_module('transition%d' % (i + 1), trans)
+        #         self.inplanes = self.inplanes // 2
+        #
+        # # Final batch norm
+        # self.features.add_module('norm5', nn.BatchNorm2d(self.inplanes))
 
     def init_weights(self, pretrained=''):
         if os.path.isfile(pretrained):
@@ -133,9 +130,11 @@ class PoseDenseNet(nn.Module):
             pattern = re.compile(
                 r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
             for key in list(pretrained_state_dict.keys()):
-                res = pattern.match(key)
+                new_key = re.sub(r'^features\.', '', key)
+                res = pattern.match(new_key)
                 if res:
                     new_key = res.group(1) + res.group(2)
+                if new_key != key:
                     pretrained_state_dict[new_key] = pretrained_state_dict[key]
                     del pretrained_state_dict[key]
             self.load_state_dict(pretrained_state_dict, strict=False)
@@ -148,32 +147,7 @@ class PoseDenseNet(nn.Module):
                     nn.init.constant_(m.weight, 1)
                     nn.init.constant_(m.bias, 0)
 
-        for m in self.deconv.modules():
-            if isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, std=0.001)
-                if self.deconv_bias:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-        for m in self.heatmap.modules():
-            if isinstance(m, nn.Conv2d):
-                # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.normal_(m.weight, std=0.001)
-                nn.init.constant_(m.bias, 0)
-
 densenet_dict = {121: (64, 32, [6, 12, 24, 16]),
                  169: (64, 32, [6, 12, 32, 32]),
                  201: (64, 32, [6, 12, 48, 32]),
                  161: (96, 48, [6, 12, 36, 24])}
-
-def deconv_densenet(layer_msg, num_classes, pretrained):
-    num_layers = int(layer_msg)
-    num_init_features, growth_rate, block_config = densenet_dict[num_layers]
-    model = PoseDenseNet(num_init_features, growth_rate, block_config, num_classes=num_classes)
-
-    if pretrained:
-        model_path = os.path.join('data', 'pretrained', 'densenet{}.pth'.format(num_layers))
-        model.init_weights(model_path)
-
-    return model

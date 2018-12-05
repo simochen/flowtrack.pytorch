@@ -61,35 +61,32 @@ def main(**kwargs):
 	# Step 1 : create model
 	print("==> creating model '{}', backbone = {}".format(
 		opt.model, opt.backbone) )
-	if opt.model == 'deconv':
-		for net_name in ['resnet', 'densenet', 'squeezenet']:
-			if net_name in opt.backbone:
-				model_name = '{}_{}'.format(opt.model, net_name)
-				model_msg = opt.backbone[len(net_name):]
-				break
-		model = getattr(models, model_name)(model_msg,
-										    num_classes = num_classes,
-										    pretrained = True)
-		model_name = '{}_{}'.format(opt.model, opt.backbone)
+	if opt.model in ['deconv', 'fpn', 'pose']:
+		model = getattr(models, opt.model)(opt.backbone,
+										   num_classes = num_classes,
+										   pretrained = opt.pretrained)
+		opt.model_name = '{}_{}'.format(opt.model, opt.backbone)
 	elif opt.model == 'hg':
 		model = getattr(models, opt.model)(num_classes = num_classes,
 										   num_stacks = 8)
-		model_name = opt.model
+		opt.model_name = opt.model
 
 	# tensorboard writer
-	log_dir = os.path.join(opt.work_dir, 'log', model_name)
-	if os.path.exists(log_dir):
-		shutil.rmtree(log_dir)
-	writer_dict = {
-		'writer': SummaryWriter(log_dir=log_dir),
-		'train_global_steps': 0,
-		'valid_global_steps': 0,
-	}
-	dump_input = torch.rand((opt.batch_size,
-							 3,
-							 opt.input_res[0],
-							 opt.input_res[1]))
-	writer_dict['writer'].add_graph(model, (dump_input, ), verbose=False)
+	writer_dict = None
+	if opt.tensorboard and 'train' in opt.run_type:
+		log_dir = os.path.join(opt.work_dir, 'log', opt.model_name)
+		if os.path.exists(log_dir):
+			shutil.rmtree(log_dir)
+		writer_dict = {
+			'writer': SummaryWriter(log_dir=log_dir),
+			'train_global_steps': 0,
+			'valid_global_steps': 0,
+		}
+		dump_input = torch.rand((opt.batch_size,
+								 3,
+								 opt.input_res[0],
+								 opt.input_res[1]))
+		writer_dict['writer'].add_graph(model, (dump_input, ), verbose=False)
 
 	if opt.use_gpu:
 		# model = torch.nn.DataParallel(model).cuda()
@@ -121,7 +118,7 @@ def main(**kwargs):
 	# (Optional) resume from checkpoint
 	if opt.resume:
 		model_path = os.path.join(opt.work_dir, opt.resume)
-		loss_path = os.path.join(opt.work_dir, 'loss.t7')
+		loss_path = os.path.join(opt.work_dir, '{}_loss.t7'.format(opt.model_name))
 		if os.path.exists(model_path):
 			print("=> loading checkpoint '{}'".format(opt.resume))
 			checkpoint = torch.load(model_path)
@@ -171,7 +168,7 @@ def main(**kwargs):
 			loss['train'].append(train_loss)
 			loss['valid'].append(valid_loss)
 			loss['APs'].append(APs_dict)
-			torch.save(loss, os.path.join(opt.work_dir, 'loss.t7'))
+			torch.save(loss, os.path.join(opt.work_dir, '{}_loss.t7'.format(opt.model_name)))
 
 			# save checkpoint (best valid loss)
 			if valid_loss < best_loss:
@@ -182,7 +179,7 @@ def main(**kwargs):
 					'state_dict': model.state_dict(),
 					'best_loss': best_loss,
 					'optimizer' : optimizer.state_dict() }
-				filename = '_'.join([model_name, 'best'])+'.pth'
+				filename = '_'.join([opt.model_name, 'best'])+'.pth'
 				filename = os.path.join(opt.work_dir, filename)
 				torch.save(checkpoint, filename)
 			# save every i epoch
@@ -193,7 +190,7 @@ def main(**kwargs):
 					'state_dict': model.state_dict(),
 					'best_loss': best_loss,
 					'optimizer' : optimizer.state_dict() }
-				filename = '_'.join([model_name, str(epoch+1)])+'.pth'
+				filename = '_'.join([opt.model_name, str(epoch+1)])+'.pth'
 				filename = os.path.join(opt.work_dir, filename)
 				torch.save(checkpoint, filename)
 	elif opt.run_type == 'valid':
@@ -201,7 +198,7 @@ def main(**kwargs):
 		print('Test loss: %.6f | mAP: %.6f'%(valid_loss, valid_mAP))
 
 
-def train(train_loader, model, criterion, optimizer, opt, writer_dict):
+def train(train_loader, model, criterion, optimizer, opt, writer_dict=None):
 	pbar = tqdm(total=len(train_loader))
 	losses = AverageMeter()
 	acc = AverageMeter()
@@ -226,10 +223,14 @@ def train(train_loader, model, criterion, optimizer, opt, writer_dict):
 		optimizer.zero_grad()
 		# compute output
 		output = model(inputs)
-		if opt.model == 'hg':
-			output = output[-1]
 		# compute loss
-		loss = criterion(output, target_hm, target_weight, mask)
+		if opt.model == 'hg':
+			loss = torch.zeros(1).cuda()
+			for out in output:
+				loss.add_(criterion(out, target_hm, target_weight, mask))
+			output = output[-1]
+		else:
+			loss = criterion(output, target_hm, target_weight, mask)
 
 		loss.backward()
 		optimizer.step()
@@ -237,7 +238,7 @@ def train(train_loader, model, criterion, optimizer, opt, writer_dict):
 		_, avg_acc, cnt, pred = accuracy(output.detach(), target_hm.detach())
 		acc.update(avg_acc, cnt)
 
-		if i % opt.draw_freq == 0:
+		if writer_dict and i % opt.draw_freq == 0:
 			writer = writer_dict['writer']
 			global_steps = writer_dict['train_global_steps']
 			writer.add_scalar('train_loss', losses.val, global_steps)
@@ -352,9 +353,9 @@ def validate(valid_loader, valid_data, model, criterion, opt, writer_dict=None):
 
 		if isinstance(results, list):
 			for item in results:
-				_print_name_value(item, opt.model)
+				_print_name_value(item, opt.model_name)
 		else:
-			_print_name_value(results, opt.model)
+			_print_name_value(results, opt.model_name)
 
 		if writer_dict:
 			writer = writer_dict['writer']
