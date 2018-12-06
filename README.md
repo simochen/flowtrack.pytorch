@@ -54,7 +54,7 @@ Download [data folder](https://drive.google.com/drive/folders/1RqsY3ONtYlxQfLg2a
 python ./tools/pose/main.py
 ```
 
-The official code is released on [Microsoft/human-pose-estimation.pytorch](https://github.com/simochen/flowtrack.pytorch/issues/url).
+The official code is released on [Microsoft/human-pose-estimation.pytorch](https://github.com/Microsoft/human-pose-estimation.pytorch).
 
 ### 
 
